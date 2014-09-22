@@ -5,6 +5,10 @@
 #include <QJsonArray>
 #include "geometryConverter.h"
 
+#include <stdint.h>
+#include <assert.h>
+#include <map>
+
 extern QNetworkReply *reply;
 
 
@@ -74,6 +78,25 @@ void parseJsonValue(QJsonValue val, int depth = 0)
 
 }
 
+map<uint64_t, pair<double, double> > getNodes(QJsonArray elements)
+{
+    map<uint64_t, pair<double, double> > nodes;
+    for (QJsonArray::const_iterator el = elements.begin(); el != elements.end(); el++)
+    {
+        QJsonObject obj = (*el).toObject();
+        if (obj["type"].toString() != "node")
+            continue;
+
+        uint64_t id = obj["id"].toDouble();
+        double lat = obj["lat"].toDouble();
+        double lng = obj["lon"].toDouble();
+
+        if (!nodes.count(id))
+            nodes.insert( pair<uint64_t, pair<double, double> >(id, pair<double, double>(lat, lng) ) );
+    }
+    return nodes;
+}
+
 void GeometryConverter::onDownloadFinished()
 {
     cout << "Finished" << endl;
@@ -86,8 +109,33 @@ void GeometryConverter::onDownloadFinished()
     else {
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
         cout << ( doc.isNull() ? "invalid":"valid") << endl;
-        QJsonObject obj = doc.object();
-        parseJsonObject(obj, 1);
+        //QJsonObject obj = doc.object();
+        QJsonArray elements = doc.object()["elements"].toArray();
+        map<uint64_t, pair<double, double> > nodes = getNodes(elements);
+        cout << "parsed " << nodes.size() << " nodes" << endl;
+
+        for (QJsonArray::const_iterator el = elements.begin(); el != elements.end(); el++)
+        {
+            QJsonObject obj = (*el).toObject();
+            QString type = obj["type"].toString();
+            //cout << type.toStdString() << endl;
+            if (type != "way")
+                continue;
+            //parseJsonObject( obj, 1);
+
+            uint64_t id = obj["id"].toDouble();
+            list<pair<double, double> > wayNodes;
+            QJsonArray jNodes = obj["nodes"].toArray();
+            for (QJsonArray::const_iterator it = jNodes.begin(); it != jNodes.end(); it++)
+            {
+                assert ( (*it).isDouble() == true);
+                uint64_t nodeId = (*it).toDouble();
+                assert( nodes.count(nodeId) > 0);
+                wayNodes.push_back( nodes[nodeId]);
+            }
+            cout << "way " << id << " has " << wayNodes.size() << " nodes" << endl;
+
+        }
         //QJsonValue sp = obj["lon"];
 
         cout << "Emitting 'done' signal" << endl;
