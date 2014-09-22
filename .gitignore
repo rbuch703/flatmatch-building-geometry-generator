@@ -1,0 +1,5 @@
+GeometryConversion
+GeometryConversion.pro.user
+Makefile
+*.o
+moc_*
