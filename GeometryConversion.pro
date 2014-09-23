@@ -9,6 +9,7 @@ QT       = core network
 TARGET = GeometryConversion
 CONFIG   += console
 CONFIG   -= app_bundle
+CONFIG   += silent
 
 TEMPLATE = app
 
