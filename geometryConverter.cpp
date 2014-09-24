@@ -6,6 +6,7 @@
 #include "geometryConverter.h"
 #include "osmtypes.h"
 #include "polygonwithholes.h"
+#include "buildingattributes.h"
 
 #include <stdint.h>
 #include <assert.h>
@@ -244,11 +245,26 @@ void GeometryConverter::onDownloadFinished()
             promoteTags(rel->second);
             polygons.push_back( PolygonWithHoles::fromOsmRelation(rel->second));
         }
+        /** Fixme: all geometry processing (simplification, roof construction, ...) requires an Euclidean
+         *        Coordinate system. But OSM data is given as lat/lng pairs, which are not Euclidean (
+         *        the mapping from lng to meters changes with lat). Thus, we need to convert all lat/lng
+         *        data to local Euclidean coordinates, and convert them back before the JSON export.
+         *
+         */
 
         for (map<uint64_t, OsmWay>::const_iterator way = ways.begin(); way != ways.end(); way++)
             polygons.push_back( PolygonWithHoles(way->second.points, list<PointList>(), way->second.tags));
 
         cout << "[DBG] unified geometry to " << polygons.size() << " polygons." << endl;
+
+        for (list<PolygonWithHoles>::const_iterator it = polygons.begin(); it != polygons.end(); it++)
+        {
+            BuildingAttributes attr( it->tags);
+            cout << attr.isFreeStandingRoof() << endl;
+        }
+        /** "Tracer Bullet"
+         * - JSON-Geometry für Wände ausgeben
+          */
         //mergeRelationWays(relations);
 
         cout << "Emitting 'done' signal" << endl << endl;

@@ -22,4 +22,5 @@ SOURCES += main.cpp \
 HEADERS += \
     geometryConverter.h \
     osmtypes.h \
-    polygonwithholes.h
+    polygonwithholes.h \
+    buildingattributes.h
