@@ -4,6 +4,8 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include "geometryConverter.h"
+#include "osmtypes.h"
+#include "polygonwithholes.h"
 
 #include <stdint.h>
 #include <assert.h>
@@ -14,56 +16,6 @@
 
 extern QNetworkReply *reply;
 
-typedef pair<string, string> OsmKeyValuePair;
-
-struct OsmPoint {
-    OsmPoint(): lat(nan("")), lng(nan("")) {}
-    OsmPoint(double lat, double lng): lat(lat), lng(lng) {}
-    double lat, lng;
-
-};
-
-bool operator==(const OsmPoint &p1, const OsmPoint &p2) { return p1.lat == p2.lat && p1.lng == p2.lng;}
-bool operator!=(const OsmPoint &p1, const OsmPoint &p2) { return p1.lat != p2.lat || p1.lng != p2.lng;}
-
-struct OsmWay
-{
-    OsmWay( uint64_t id = 0): id(id) {}
-
-    string getName() const {
-        if (name.length()) return name;
-        return QString::number(id).toStdString();
-    }
-    /*OsmWay( uint64_t way_id, list<uint64_t> way_refs = list<uint64_t>,
-            list<OSMKeyValuePair> way_tags = list<OSMKeyValuePair>() ):
-        id(way_id), refs(way_refs), tags(way_tags)
-    {
-
-    }
-
-    bool hasKey(string key) const;
-    const string &getValue(string key) const;
-    const string &operator[](string key) const {return getValue(key);}*/
-
-    uint64_t id;
-    string name;
-    list<OsmPoint> points;
-    map<string, string> tags;
-};
-
-struct OsmRelationMember {
-    OsmWay way;
-    string role;
-};
-
-struct OsmRelation
-{
-    OsmRelation( uint64_t id = 0): id(id) {}
-
-    uint64_t id;
-    map<string, string> tags;
-    list< OsmRelationMember  >members;
-};
 
 QString getDepthString(int depth)
 {
@@ -73,65 +25,9 @@ QString getDepthString(int depth)
     return s;
 }
 
-void parseJsonObject(QJsonObject object, int depth);
-void parseJsonValue(QJsonValue val, int depth);
-
-#define INDENT getDepthString(depth).toStdString()
-
-void parseJsonArray(QJsonArray array, int depth = 0)
-{
-    for (QJsonArray::const_iterator it = array.begin(); it != array.end(); it++)
-    {
-        cout << INDENT;
-        parseJsonValue(*it, depth+1);
-    }
-
-}
-
-void parseJsonObject(QJsonObject object, int depth = 0)
-{
-    QStringList keys = object.keys();
-    for (QStringList::const_iterator it = keys.begin(); it != keys.end(); it++)
-    {
-        cout << INDENT << (*it).toStdString() << " = ";
-        QJsonValue val = object.value(*it);
-        parseJsonValue(val, depth+1);
-    }
-}
-
-void parseJsonValue(QJsonValue val, int depth = 0)
-{
-    if (val.isArray())
-    {
-        cout << "[" << endl;
-        parseJsonArray(val.toArray(), depth+1);
-        cout << INDENT << "]" << endl;
-    }
-
-    if (val.isBool())
-        cout << (val.toBool() ? "true":"false") << endl;
-
-    if (val.isDouble())
-        cout << val.toDouble() << endl;
-
-    if (val.isNull())
-        cout << "<NULL>" << endl;
-
-    if (val.isObject())
-    {
-        cout << "  {" << endl;
-        parseJsonObject(val.toObject(), depth+1);
-        cout << INDENT << "}" << endl;
-    }
-
-    if (val.isString())
-    {
-        cout << "'" << val.toString().toStdString() << "'" << endl;
-    }
-
-}
-
-// this method does not parse node tags, as those are irrelevant to our use case
+/* this method does not parse node tags, as those are irrelevant to our use case.
+ * It only parses lat/lon coordinates, hence the name 'points' instead of 'nodes'
+ */
 map<uint64_t, OsmPoint > getPoints(QJsonArray elements)
 {
     map<uint64_t, OsmPoint > points;
@@ -153,10 +49,10 @@ map<uint64_t, OsmPoint > getPoints(QJsonArray elements)
     return points;
 }
 
-map<string, string> getTags(QJsonObject tags)
+map<string, string> getTags(QJsonObject tagsObject)
 {
     map<string, string> res;
-    for (QJsonObject::const_iterator it = tags.begin(); it != tags.end(); it++)
+    for (QJsonObject::const_iterator it = tagsObject.begin(); it != tagsObject.end(); it++)
     {
         QString key = it.key();
         string value = it.value().toString().toStdString();
@@ -165,74 +61,6 @@ map<string, string> getTags(QJsonObject tags)
         res.insert( make_pair(key.toStdString(), value));
     }
     return res;
-}
-
-map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWay> &ways)
-{
-    map<uint64_t, OsmRelation > relations;
-    // set of way_ids of all ways that are part of relations, and thus will not be treated as dedicated geometry
-    // We flag all ways belonging to relations using this set, and remove all those ways from the map of ways at
-    // the end of this method. A direct removal is not possible, since a way may be part of several relations (
-    // so if it was remove right after a single relation was foudn that contains it, it would be missing when
-    // parsing other relations that may contain it as well.
-    set<uint64_t> waysInRelations;
-
-    for (QJsonArray::const_iterator el = elements.begin(); el != elements.end(); el++)
-    {
-        QJsonObject obj = (*el).toObject();
-        if (obj["type"].toString() != "relation")
-            continue;
-
-        OsmRelation rel(obj["id"].toDouble());
-        rel.tags = getTags(obj["tags"].toObject());
-
-        QJsonArray jNodes = obj["members"].toArray();
-        for (QJsonArray::const_iterator it = jNodes.begin(); it != jNodes.end(); it++)
-        {
-            QJsonObject member = (*it).toObject();
-            QString type = member["type"].toString();
-            OsmRelationMember m;
-            uint64_t way_id = member["ref"].toDouble();
-            m.role  = member["role"].toString().toStdString();
-
-            if ( type == "node") //don't need individual nodes of relations, skip them silently
-                continue;
-            /* Cascaded relations may hold relevant information. But their semantics are not standardized,
-             * and their processing would relatively complex. So ignore them for now.
-             */
-            if (type == "relation")
-            {
-                cout << "[INFO] skipping sub-relation " << way_id << " of relation " << rel.id << endl;
-                continue;
-            }
-            assert(type == "way");
-
-            if (ways.count(way_id) == 0)
-            {
-                cout << "[WARN] member way " << way_id << " of relation " << rel.id
-                     << " is not part of JSON response, ignoring..." << endl;
-                continue;
-            }
-            waysInRelations.insert(way_id);
-            m.way = ways[way_id];
-            if (m.way.points.front() != m.way.points.back())
-            {
-                cout << "[WARN] non-closed way " << way_id << " is part of relation " << rel.id << ". This is unsupported" <<endl;
-            }
-            rel.members.push_back(m);
-        }
-
-        //cout << "relation " << rel.id << " has " << rel.members.size() << " way members" << endl;
-
-        assert(relations.count(rel.id) == 0);
-        relations.insert(make_pair(rel.id, rel) );
-    }
-    cout << "[INFO] parsed " << relations.size() << " relations" << endl;
-
-    cout << "[DBG] removing " << waysInRelations.size() << " ways that are part of relations" << endl;
-    for (set<uint64_t>::const_iterator it = waysInRelations.begin(); it != waysInRelations.end(); it++)
-        ways.erase(*it);
-    return relations;
 }
 
 map<uint64_t, OsmWay> getWays(QJsonArray elements, const map<uint64_t, OsmPoint> &points)
@@ -279,75 +107,115 @@ map<uint64_t, OsmWay> getWays(QJsonArray elements, const map<uint64_t, OsmPoint>
     return ways;
 }
 
-/* Multipolygon-Relations in OSM may consist of several line segments (ways) of different roles:
- * These line segments may represent whole or partial outlines or holes in the multipolygon.
- * This method merges those ways that represent partial holes or outlines, so that all
- * (merged) ways are closed polygons
-*/
-#if 0
-void mergeRelationWays(map<uint64_t, OsmRelation> &relations)
+
+map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWay> &ways)
 {
-    //rel.outlines = [];
+    map<uint64_t, OsmRelation > relations;
+    // set of way_ids of all ways that are part of relations, and thus will not be treated as dedicated geometry
+    // We flag all ways belonging to relations using this set, and remove all those ways from the map of ways at
+    // the end of this method. A direct removal is not possible, since a way may be part of several relations (
+    // so if it was remove right after a single relation was foudn that contains it, it would be missing when
+    // parsing other relations that may contain it as well.
+    set<uint64_t> waysInRelations;
 
-    var currentOutline = null;
-    for (var j in rel.members)
+    for (QJsonArray::const_iterator el = elements.begin(); el != elements.end(); el++)
     {
-        var way = rel.members[j];
-        delete rel.members[j];
-        /* if we currently have an open outline segment, then this next ways must be connectable
-         * to that outline. If not then we have to fallback to close that open outline segment with a
-         * straight line (which is usually not the intended result), store it, and continue with the next one
-        */
-        if (currentOutline)
+        map<string, uint64_t> roles;
+
+        QJsonObject obj = (*el).toObject();
+        if (obj["type"].toString() != "relation")
+            continue;
+
+        OsmRelation rel(obj["id"].toDouble());
+        rel.tags = getTags(obj["tags"].toObject());
+
+        QJsonArray jNodes = obj["members"].toArray();
+        for (QJsonArray::const_iterator it = jNodes.begin(); it != jNodes.end(); it++)
         {
-            var res = Buildings.joinWays(currentOutline, way);
-            if (res) //join succeeded
-                currentOutline = res;
-            else //join failed --> force-close old outline
+            QJsonObject member = (*it).toObject();
+            QString type = member["type"].toString();
+            OsmRelationMember m;
+            uint64_t way_id = member["ref"].toDouble();
+            m.role  = member["role"].toString().toStdString();
+
+            if ( type == "node") //don't need individual nodes of relations, skip them silently
+                continue;
+            /* Cascaded relations may hold relevant information. But their semantics are not standardized,
+             * and their processing would relatively complex. So ignore them for now.
+             */
+            if (type == "relation")
             {
-                console.log("Force-closed way %s in relation %s", currentOutline.ref.id, rel.id)
-
-                //if it is already closed, it should not be currentOutline in the first place
-                if (currentOutline.ref.nodes[0] == currentOutline.ref.nodes[currentOutline.ref.nodes.length-1])
-                    console.log("BUG: current outline should not be closed (at relation %s)", rel.id);
-                else
-                    currentOutline.ref.nodes.push(currentOutline.ref.nodes[0]);
-
-                rel.outlines.push(currentOutline);
-                currentOutline = way;
+                cout << "[INFO] skipping sub-relation " << way_id << " of relation " << rel.id << endl;
+                continue;
             }
-        } else
-        {
-            currentOutline = way;
+            assert(type == "way");
+
+            if (roles.count(m.role) == 0)
+                roles.insert(make_pair(m.role, 0));
+            roles[m.role] += 1;
+
+            if (ways.count(way_id) == 0)
+            {
+                cout << "[WARN] member way " << way_id << " of relation " << rel.id
+                     << " is not part of JSON response, ignoring..." << endl;
+                continue;
+            }
+            waysInRelations.insert(way_id);
+            m.way = ways[way_id];
+            if (m.way.points.front() != m.way.points.back())
+            {
+                cout << "[WARN] non-closed way " << way_id << " is part of relation " << rel.id << ". This is unsupported" <<endl;
+            }
+            rel.members.push_back(m);
         }
 
-        //if currentOutline is closed, it is complete and can be stored away
-        if (currentOutline)
-        {
-            //console.log(currentOutline);
-            if (currentOutline.ref.nodes[0] == currentOutline.ref.nodes[currentOutline.ref.nodes.length-1])
-            {
-                rel.outlines.push(currentOutline);
-                currentOutline = null;
-            }
-        }
+        //assert(roles["outer"] == 1);    //exactly one 'outer' way
+        //cout << "relation " << rel.id << " has " << rel.members.size() << " way members" << endl;
+        if (roles["outer"] != 1)
+            cout << "[WARN] relation " <<rel.id << " has more than one 'outer' member. This is currently unsupported" << endl;
+
+        //for (map<string, uint64_t>::const_iterator role =roles.begin(); role != roles.end(); role++)
+        //    cout << "\t" << (*role).first << "(" << (*role).second << ")" << endl;
+
+        assert(relations.count(rel.id) == 0);
+        relations.insert(make_pair(rel.id, rel) );
     }
+    cout << "[INFO] parsed " << relations.size() << " relations" << endl;
 
-    /*if there is an open outline left, we have to force-close it (since there is no other segment left
-     *to close it with) using a straight line */
-    if (currentOutline)
-    {
-        if (currentOutline.ref.nodes[0] == currentOutline.ref.nodes[currentOutline.ref.nodes.length-1])
-            console.log("BUG: current outline should not be closed (at relation %s)", rel.id);
-        else
-            currentOutline.ref.nodes.push(currentOutline.ref.nodes[0]);
-
-        rel.outlines.push(currentOutline);
-        currentOutline = null;
-    }
-
+    cout << "[DBG] removing " << waysInRelations.size() << " ways that are part of relations" << endl;
+    for (set<uint64_t>::const_iterator it = waysInRelations.begin(); it != waysInRelations.end(); it++)
+        ways.erase(*it);
+    return relations;
 }
-#endif
+
+
+/* In some (technically invalid) cases, an OSM multipolygon has few tags or even no tags at all,
+ * and the tags describing it instead are part of its only 'outer' member. This method copies
+ * relevant tags from those 'outer' members to the relation itself. This is usually caused when a
+ * user of the OSM web editor promotes a way to a relation, but is not aware that he has to move
+ * the tags manually.
+ *
+ * */
+void promoteTags(OsmRelation &relation)
+{
+    for (list<OsmRelationMember>::const_iterator it = relation.members.begin(); it != relation.members.end(); it++)
+    {
+        if (it->role != "outer")
+            continue;
+
+        const OsmWay &way = it->way;
+        for (map<string, string>::const_iterator tag = way.tags.begin(); tag != way.tags.end(); tag++)
+        {
+            if (relation.tags.count(tag->first) == 0)
+            {
+                assert(false && "untested code");
+                relation.tags.insert(*tag);
+                cout << "[DBG] adding " << (tag->first) << "=" << tag->second << " to relation" << relation.id << endl;
+            }
+        }
+
+    }
+}
 
 void GeometryConverter::onDownloadFinished()
 {
@@ -370,9 +238,20 @@ void GeometryConverter::onDownloadFinished()
         map<uint64_t, OsmWay> ways = getWays(elements, nodes);
         map<uint64_t, OsmRelation> relations = getRelations(elements, ways);
 
+        list<PolygonWithHoles> polygons;
+        for (map<uint64_t, OsmRelation>::iterator rel = relations.begin(); rel != relations.end(); rel++)
+        {
+            promoteTags(rel->second);
+            polygons.push_back( PolygonWithHoles::fromOsmRelation(rel->second));
+        }
+
+        for (map<uint64_t, OsmWay>::const_iterator way = ways.begin(); way != ways.end(); way++)
+            polygons.push_back( PolygonWithHoles(way->second.points, list<PointList>(), way->second.tags));
+
+        cout << "[DBG] unified geometry to " << polygons.size() << " polygons." << endl;
         //mergeRelationWays(relations);
 
-        cout << "Emitting 'done' signal" << endl;
+        cout << "Emitting 'done' signal" << endl << endl;
         emit done();
     }
 
