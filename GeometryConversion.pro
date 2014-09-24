@@ -17,10 +17,12 @@ TEMPLATE = app
 SOURCES += main.cpp \
     geometryConverter.cpp \
     polygonwithholes.cpp \
-    osmtypes.cpp
+    osmtypes.cpp \
+    geometrycollection.cpp
 
 HEADERS += \
     geometryConverter.h \
     osmtypes.h \
     polygonwithholes.h \
-    buildingattributes.h
+    buildingattributes.h \
+    geometrycollection.h

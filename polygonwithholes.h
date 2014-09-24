@@ -2,6 +2,7 @@
 #define POLYGONWITHHOLES_H
 
 #include "osmtypes.h"
+#include "geometrycollection.h" //for Vertex3
 #include <list>
 #include <string>
 
@@ -12,7 +13,9 @@ public:
     PolygonWithHoles( const PointList &outer, const list<PointList> &holes, const Tags &tags );
 
     static PolygonWithHoles fromOsmRelation(const OsmRelation &rel);
-    string edgesToJson() const;
+    list< LineStrip > getEdges() const;
+
+//    string edgesToJson() const;
 private:
     PointList outer;
     list<PointList> holes;

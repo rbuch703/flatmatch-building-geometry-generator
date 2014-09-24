@@ -11,6 +11,8 @@
  *         the building without the roof is the difference of the two
  */
 
+//FIXME: add parsing of roof shapes
+
 //FIXME: add parsing of units and unit conversion
 float getLengthInMeters(string s)
 {

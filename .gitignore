@@ -3,3 +3,6 @@ GeometryConversion.pro.user
 Makefile
 *.o
 moc_*
+*~
+geometry.json
+test.html

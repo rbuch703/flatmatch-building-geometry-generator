@@ -257,11 +257,23 @@ void GeometryConverter::onDownloadFinished()
 
         cout << "[DBG] unified geometry to " << polygons.size() << " polygons." << endl;
 
-        for (list<PolygonWithHoles>::const_iterator it = polygons.begin(); it != polygons.end(); it++)
+        /*for (list<PolygonWithHoles>::const_iterator it = polygons.begin(); it != polygons.end(); it++)
         {
             BuildingAttributes attr( it->tags);
             cout << attr.isFreeStandingRoof() << endl;
+        }*/
+        GeometryCollection geometry;
+
+        for (list<PolygonWithHoles>::const_iterator it = polygons.begin(); it != polygons.end(); it++)
+        {
+            list<LineStrip> lineStrips = it->getEdges();
+            geometry.mergeInLineStrips( lineStrips );
         }
+
+        cerr << geometry.toJson() << endl;
+
+
+
         /** "Tracer Bullet"
          * - JSON-Geometry für Wände ausgeben
           */
