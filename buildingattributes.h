@@ -63,6 +63,19 @@ public:
         return 10; //arbitrary height value
     }
 
+    float getTotalHeight() const
+    {
+        if (height != -1) return height;
+        if (numLevels == -1) return 10; //arbitrary height value
+
+        int levels = numLevels;
+        if (this->numRoofLevels != -1)
+            levels += numRoofLevels;
+
+        return levels * 3.0;
+    }
+
+
     float getRoofHeight() const
     {
         if (roofHeight != 0.0) return roofHeight;

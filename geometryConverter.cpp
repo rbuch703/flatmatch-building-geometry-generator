@@ -257,7 +257,7 @@ void GeometryConverter::onDownloadFinished()
         }
         /** Fixme: all geometry processing (simplification, roof construction, ...) requires an Euclidean
          *        Coordinate system. But OSM data is given as lat/lng pairs, which are not Euclidean (
-         *        the mapping from lng to meters changes with lat). Thus, we need to convert all lat/lng
+         *        the mapping from lng to meters changes with cos(lat) ). Thus, we need to convert all lat/lng
          *        data to local Euclidean coordinates, and convert them back before the JSON export.
          *
          */
@@ -267,8 +267,6 @@ void GeometryConverter::onDownloadFinished()
                 PolygonWithHoles(way->second.points, list<PointList>()),
                 BuildingAttributes ( way->second.tags),
                 string("\"w")+QString::number(way->second.id).toStdString()+"\"" ));
-
-            //polygons.push_back( PolygonWithHoles(way->second.points, list<PointList>()));
 
         cout << "[DBG] unified geometry to " << buildings.size() << " buildings." << endl;
 
@@ -280,26 +278,10 @@ void GeometryConverter::onDownloadFinished()
                 cerr << ",";
 
             isFirstBuilding = false;
-            cerr << it->toJSON() << endl;
+            cerr << endl << it->toJSON();
+
         }
         cerr << "]" << endl;
-        /*
-        GeometryCollection geometry;
-
-        for (list<PolygonWithHoles>::const_iterator it = polygons.begin(); it != polygons.end(); it++)
-        {
-            list<LineStrip> lineStrips = it->getEdges();
-            geometry.mergeInLineStrips( lineStrips );
-        }
-
-        cerr << geometry.toJson() << endl;*/
-
-
-
-        /** "Tracer Bullet"
-         * - JSON-Geometry für Wände ausgeben
-          */
-        //mergeRelationWays(relations);
 
         cout << "Emitting 'done' signal" << endl << endl;
         emit done();

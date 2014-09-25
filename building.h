@@ -19,6 +19,7 @@ public:
     string toJSON() const;
 private:
     list<LineStrip> getEdges() const;
+    list<Triangle> getFaces() const;
 
     BuildingAttributes attributes;
     PolygonWithHoles   layout;
