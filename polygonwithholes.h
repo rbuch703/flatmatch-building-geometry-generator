@@ -2,25 +2,26 @@
 #define POLYGONWITHHOLES_H
 
 #include "osmtypes.h"
-#include "geometrycollection.h" //for Vertex3
 #include <list>
 #include <string>
+
+/** This class represents a 2D polygon with holes. It has no other attributes such as
+ *  height, OSM tags, etc.
+ */
 
 class PolygonWithHoles
 {
 public:
     PolygonWithHoles( );
-    PolygonWithHoles( const PointList &outer, const list<PointList> &holes, const Tags &tags );
+    PolygonWithHoles( const PointList &outer, const list<PointList> &holes);
 
     static PolygonWithHoles fromOsmRelation(const OsmRelation &rel);
-    list< LineStrip > getEdges() const;
-
+    const PointList& getOuterPolygon() const {return outer;}
+    const list<PointList>& getHoles() const {return holes;}
 //    string edgesToJson() const;
 private:
     PointList outer;
     list<PointList> holes;
-public: //made public just for debugging
-    Tags tags;
 };
 
 #endif // POLYGONWITHHOLES_H

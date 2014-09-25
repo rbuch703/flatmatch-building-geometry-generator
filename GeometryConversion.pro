@@ -14,15 +14,17 @@ CONFIG   += silent
 TEMPLATE = app
 
 
-SOURCES += main.cpp \
+SOURCES += \
     geometryConverter.cpp \
     polygonwithholes.cpp \
     osmtypes.cpp \
-    geometrycollection.cpp
+    building.cpp \
+    geometry.cpp
 
 HEADERS += \
     geometryConverter.h \
     osmtypes.h \
     polygonwithholes.h \
     buildingattributes.h \
-    geometrycollection.h
+    building.h \
+    geometry.h

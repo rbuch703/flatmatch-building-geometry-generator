@@ -1,13 +1,12 @@
-#include <iostream>
 #include <QNetworkReply>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
-#include "geometryConverter.h"
-#include "osmtypes.h"
-#include "polygonwithholes.h"
-#include "buildingattributes.h"
+#include <QCoreApplication>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
 
+#include <iostream>
 #include <stdint.h>
 #include <assert.h>
 #include <math.h>
@@ -15,7 +14,14 @@
 #include <string>
 #include <set>
 
-extern QNetworkReply *reply;
+#include "geometryConverter.h"
+#include "osmtypes.h"
+#include "polygonwithholes.h"
+#include "buildingattributes.h"
+#include "building.h"
+
+
+QNetworkReply *reply;
 
 
 QString getDepthString(int depth)
@@ -239,11 +245,15 @@ void GeometryConverter::onDownloadFinished()
         map<uint64_t, OsmWay> ways = getWays(elements, nodes);
         map<uint64_t, OsmRelation> relations = getRelations(elements, ways);
 
-        list<PolygonWithHoles> polygons;
+        //list<PolygonWithHoles> polygons;
+        list<Building> buildings;
         for (map<uint64_t, OsmRelation>::iterator rel = relations.begin(); rel != relations.end(); rel++)
         {
             promoteTags(rel->second);
-            polygons.push_back( PolygonWithHoles::fromOsmRelation(rel->second));
+            buildings.push_back( Building(
+                PolygonWithHoles::fromOsmRelation(rel->second),
+                BuildingAttributes( rel->second.tags ),
+                string("\"r")+QString::number(rel->second.id).toStdString()+"\"" ));
         }
         /** Fixme: all geometry processing (simplification, roof construction, ...) requires an Euclidean
          *        Coordinate system. But OSM data is given as lat/lng pairs, which are not Euclidean (
@@ -253,15 +263,27 @@ void GeometryConverter::onDownloadFinished()
          */
 
         for (map<uint64_t, OsmWay>::const_iterator way = ways.begin(); way != ways.end(); way++)
-            polygons.push_back( PolygonWithHoles(way->second.points, list<PointList>(), way->second.tags));
+            buildings.push_back( Building(
+                PolygonWithHoles(way->second.points, list<PointList>()),
+                BuildingAttributes ( way->second.tags),
+                string("\"w")+QString::number(way->second.id).toStdString()+"\"" ));
 
-        cout << "[DBG] unified geometry to " << polygons.size() << " polygons." << endl;
+            //polygons.push_back( PolygonWithHoles(way->second.points, list<PointList>()));
 
-        /*for (list<PolygonWithHoles>::const_iterator it = polygons.begin(); it != polygons.end(); it++)
+        cout << "[DBG] unified geometry to " << buildings.size() << " buildings." << endl;
+
+        cerr << "[" << endl;
+        bool isFirstBuilding = true;
+        for (list<Building>::const_iterator it = buildings.begin(); it != buildings.end(); it++)
         {
-            BuildingAttributes attr( it->tags);
-            cout << attr.isFreeStandingRoof() << endl;
-        }*/
+            if (!isFirstBuilding)
+                cerr << ",";
+
+            isFirstBuilding = false;
+            cerr << it->toJSON() << endl;
+        }
+        cerr << "]" << endl;
+        /*
         GeometryCollection geometry;
 
         for (list<PolygonWithHoles>::const_iterator it = polygons.begin(); it != polygons.end(); it++)
@@ -270,7 +292,7 @@ void GeometryConverter::onDownloadFinished()
             geometry.mergeInLineStrips( lineStrips );
         }
 
-        cerr << geometry.toJson() << endl;
+        cerr << geometry.toJson() << endl;*/
 
 
 
@@ -282,6 +304,36 @@ void GeometryConverter::onDownloadFinished()
         cout << "Emitting 'done' signal" << endl << endl;
         emit done();
     }
+
+}
+
+
+int main(int argc, char *argv[])
+{
+    QCoreApplication app(argc, argv);   //initialize infrastructure for Qt event loop.
+    QNetworkAccessManager *manager = new QNetworkAccessManager();
+
+    //QObject::connect(manager, SIGNAL(finished(QNetworkReply *)),
+    //                             SLOT(slotRequestFinished(QNetworkReply *)));
+
+    QNetworkRequest request;
+    QString buildingsAtFlatViewDefaultLocation = "http://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3B(way%5B%22building%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208)%3Bway%5B%22building%3Apart%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208)%3Brelation%5B%22building%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208))%3Bout%20body%3B%3E%3Bout%20skel%20qt%3B";
+    QString buildingRelationsInMagdeburg = "http://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3Brelation%5B%22building%22%5D%2852%2E059034798886984%2C11%2E523628234863281%2C52%2E19519199255819%2C11%2E765155792236326%29%3Bout%20body%3B%3E%3Bout%20skel%20qt%3B";
+    QString someBuildingsInMagdeburg = "http://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3B(way%5B%22building%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208)%3Bway%5B%22building%3Apart%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208)%3Brelation%5B%22building%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208))%3Bout%20body%3B%3E%3Bout%20skel%20qt%3B";
+    //request.setUrl(QUrl());
+    request.setUrl(someBuildingsInMagdeburg);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+
+    reply = manager->get(request);
+    GeometryConverter * dummy = new GeometryConverter();
+
+    QObject::connect(reply, SIGNAL(finished()), dummy, SLOT(onDownloadFinished()));
+    //                           SLOT(slotProgress(qint64,qint64)));
+
+    QObject::connect(dummy, SIGNAL(done()), &app, SLOT(quit()) );
+    //                           SLOT(slotProgress(qint64,qint64)));
+
+    return app.exec();
 
 }
 
