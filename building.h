@@ -17,6 +17,7 @@ public:
     Building();
     Building(PolygonWithHoles layout, BuildingAttributes attributes, string name = "");
     string toJSON() const;
+    string getName() const;
 private:
     list<LineStrip> getEdges() const;
     list<Triangle> getFaces() const;

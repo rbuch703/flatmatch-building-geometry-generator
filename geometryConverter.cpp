@@ -245,7 +245,13 @@ void GeometryConverter::onDownloadFinished()
         map<uint64_t, OsmWay> ways = getWays(elements, nodes);
         map<uint64_t, OsmRelation> relations = getRelations(elements, ways);
 
-        //list<PolygonWithHoles> polygons;
+        /** Fixme: all geometry processing (simplification, roof construction, ...) requires an Euclidean
+         *        coordinate system. But OSM data is given as lat/lng pairs, which are not Euclidean (
+         *        the mapping from lng to meters changes with cos(lat) ). Thus, we need to convert all lat/lng
+         *        data to local Euclidean coordinates, and convert them back before the JSON export.
+         *
+         */
+
         list<Building> buildings;
         for (map<uint64_t, OsmRelation>::iterator rel = relations.begin(); rel != relations.end(); rel++)
         {
@@ -253,21 +259,16 @@ void GeometryConverter::onDownloadFinished()
             buildings.push_back( Building(
                 PolygonWithHoles::fromOsmRelation(rel->second),
                 BuildingAttributes( rel->second.tags ),
-                string("\"r")+QString::number(rel->second.id).toStdString()+"\"" ));
+                string("r")+QString::number(rel->second.id).toStdString() ));
         }
-        /** Fixme: all geometry processing (simplification, roof construction, ...) requires an Euclidean
-         *        Coordinate system. But OSM data is given as lat/lng pairs, which are not Euclidean (
-         *        the mapping from lng to meters changes with cos(lat) ). Thus, we need to convert all lat/lng
-         *        data to local Euclidean coordinates, and convert them back before the JSON export.
-         *
-         */
 
         for (map<uint64_t, OsmWay>::const_iterator way = ways.begin(); way != ways.end(); way++)
+        {
             buildings.push_back( Building(
                 PolygonWithHoles(way->second.points, list<PointList>()),
                 BuildingAttributes ( way->second.tags),
-                string("\"w")+QString::number(way->second.id).toStdString()+"\"" ));
-
+                string("w")+QString::number(way->second.id).toStdString() ));
+        }
         cout << "[DBG] unified geometry to " << buildings.size() << " buildings." << endl;
 
         cerr << "[" << endl;

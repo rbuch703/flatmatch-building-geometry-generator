@@ -34,8 +34,8 @@ public:
         if (tags.count("roof:levels"))
             numRoofLevels = atof( tags.at("roof:levels").c_str() );
 
-        if (tags.count("building:min_levels"))
-            skipLevels = atof( tags.at("building:min_levels").c_str() );
+        if (tags.count("building:min_level"))
+            skipLevels = atof( tags.at("building:min_level").c_str() );
 
         if (tags.count("height"))
             height = getLengthInMeters( tags.at("height").c_str() );

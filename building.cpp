@@ -17,6 +17,8 @@ Building::Building(PolygonWithHoles layout, BuildingAttributes attributes, strin
 {
 }
 
+string Building::getName() const { return this->name; }
+
 void addEdges(const PointList &poly, list<LineStrip> &edgesOut, double minHeight, double height) {
     LineStrip lower;
     LineStrip upper;
@@ -55,8 +57,8 @@ void addFaces(const PointList &poly, list<Triangle> &facesOut, double minHeight,
         Vertex3 C(p2->lat, p2->lng, minHeight);
         Vertex3 D(p2->lat, p2->lng, height);
 
-        facesOut.push_back( Triangle(A, D, B));
-        facesOut.push_back( Triangle(A, C, D));
+        facesOut.push_back( Triangle(A, B, D));
+        facesOut.push_back( Triangle(A, D, C));
     }
 }
 
@@ -115,7 +117,7 @@ string Building::toJSON() const {
     map<Vertex3, int> vertexIds;
 
     ss << "{" << endl;
-    ss << "\t\"id\":" << this->name << "," << endl;
+    ss << "\t\"id\": \"" << this->name << "\"," << endl;
 
     ss << "\t\"edges\": [";
     //list<LineStrip> edges = ;
