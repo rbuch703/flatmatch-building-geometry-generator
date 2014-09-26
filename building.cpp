@@ -8,6 +8,9 @@
 #include <assert.h>
 #include <iomanip>  //for std::setprecision
 
+#include <iostream>
+
+using namespace std;
 Building::Building()
 {
 }
@@ -41,7 +44,7 @@ void addEdges(const PointList &poly, list<LineStrip> &edgesOut, double minHeight
     edgesOut.push_back(upper);
 }
 
-void addFaces(const PointList &poly, list<Triangle> &facesOut, double minHeight, double height) {
+void addFaces(const PointList &poly, list<Triangle3> &facesOut, double minHeight, double height) {
 
     PointList::const_iterator p2 = poly.begin();
     PointList::const_iterator p1 = p2++;
@@ -57,8 +60,8 @@ void addFaces(const PointList &poly, list<Triangle> &facesOut, double minHeight,
         Vertex3 C(p2->lat, p2->lng, minHeight);
         Vertex3 D(p2->lat, p2->lng, height);
 
-        facesOut.push_back( Triangle(A, B, D));
-        facesOut.push_back( Triangle(A, D, C));
+        facesOut.push_back( Triangle3(A, B, D));
+        facesOut.push_back( Triangle3(A, D, C));
     }
 }
 
@@ -75,11 +78,24 @@ list<LineStrip> Building::getEdges() const {
     BOOST_FOREACH( const PointList &edge, this->layout.getHoles())
         addEdges( edge, edges, minHeight, totalHeight);
 
+    /// (temporarily) add flat roof triangulation to edge list
+    /*list<Triangle2> tris = layout.triangulate();
+    BOOST_FOREACH( const Triangle2 &tri, tris)
+    {
+        LineStrip strip;
+        strip.push_back( Vertex3(tri.v1, totalHeight));
+        strip.push_back( Vertex3(tri.v2, totalHeight));
+        strip.push_back( Vertex3(tri.v3, totalHeight));
+        strip.push_back( Vertex3(tri.v1, totalHeight));
+
+        edges.push_back(strip);
+    }*/
+
     return edges;
 }
 
-list<Triangle> Building::getFaces() const {
-    list<Triangle> faces;
+list<Triangle3> Building::getFaces() const {
+    list<Triangle3> faces;
 
     float minHeight = this->attributes.getMinHeight();
     float totalHeight=this->attributes.getTotalHeight();
@@ -88,6 +104,18 @@ list<Triangle> Building::getFaces() const {
 
     BOOST_FOREACH( const PointList &hole, this->layout.getHoles())
         addFaces( hole, faces, minHeight, totalHeight);
+
+    /// add flat roof triangulation
+    list<Triangle2> tris = layout.triangulate();
+    BOOST_FOREACH( const Triangle2 &tri, tris)
+    {
+        //swap two vertices to change vertex orientation
+        Triangle3 t( Vertex3(tri.v1, totalHeight),
+                     Vertex3(tri.v3, totalHeight),
+                     Vertex3(tri.v2, totalHeight));
+
+        faces.push_back(t);
+    }
 
     return faces;
 }
@@ -145,7 +173,7 @@ string Building::toJSON() const {
     ss << "\t\"faces\": [";
 
     bool isFirstFace = true;
-    BOOST_FOREACH(Triangle tri, this->getFaces())
+    BOOST_FOREACH(Triangle3 tri, this->getFaces())
     {
         if (!isFirstFace)
             ss << ",";

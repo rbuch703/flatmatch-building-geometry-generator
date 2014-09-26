@@ -2,6 +2,7 @@
 #define POLYGONWITHHOLES_H
 
 #include "osmtypes.h"
+#include "geometry.h"
 #include <list>
 #include <string>
 
@@ -15,9 +16,11 @@ public:
     PolygonWithHoles( );
     PolygonWithHoles( const PointList &outer, const list<PointList> &holes);
 
+    list<Triangle2>         triangulate() const;
+
     static PolygonWithHoles fromOsmRelation(const OsmRelation &rel);
-    const PointList& getOuterPolygon() const {return outer;}
-    const list<PointList>& getHoles() const {return holes;}
+    const PointList&        getOuterPolygon() const {return outer;}
+    const list<PointList>&  getHoles() const {return holes;}
 //    string edgesToJson() const;
 private:
     PointList outer;

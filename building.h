@@ -20,8 +20,7 @@ public:
     string getName() const;
 private:
     list<LineStrip> getEdges() const;
-    list<Triangle> getFaces() const;
-
+    list<Triangle3> getFaces() const;
     BuildingAttributes attributes;
     PolygonWithHoles   layout;
     string             name;
