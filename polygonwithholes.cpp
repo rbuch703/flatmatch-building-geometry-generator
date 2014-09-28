@@ -7,6 +7,9 @@
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/Triangulation_face_base_with_info_2.h>
 #include <CGAL/Polygon_2.h>
+#include<CGAL/Polygon_with_holes_2.h>
+#include<CGAL/create_straight_skeleton_from_polygon_with_holes_2.h>
+
 #include <iostream>
 
 struct FaceInfo2
@@ -21,6 +24,7 @@ struct FaceInfo2
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef K::Point_2 Point;
 typedef CGAL::Polygon_2<K> Polygon_2;
+typedef CGAL::Polygon_with_holes_2<K> Polygon_with_holes ;
 //typedef CGAL::Vector_2 Vector2;
 typedef CGAL::Triangulation_vertex_base_2<K> Vb;
 typedef CGAL::Triangulation_face_base_with_info_2<FaceInfo2,K> Fbb;
@@ -30,6 +34,10 @@ typedef CGAL::Exact_predicates_tag Itag;
 typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, Itag> CDT;
 //typedef CDT::Point Point;
 typedef CGAL::Polygon_2<K> Polygon_2;
+
+typedef CGAL::Straight_skeleton_2<K> Ss ;
+typedef boost::shared_ptr<Ss> SsPtr ;
+
 
 using namespace std;
 
@@ -252,31 +260,27 @@ void insert_polygon(CDT& cdt,const Polygon_2& polygon){
 }
 
 
+Polygon_2 asCgalPolygon(const PointList &poly)
+{
+    Polygon_2 res;
+    PointList tmp = poly;
+    tmp.pop_back(); //remove duplicate start/end vertex
 
-list<Triangle2> triangulation(const PolygonWithHoles &polygon)
+    BOOST_FOREACH(const OsmPoint &p, tmp)
+        res.push_back( Point(p.lat, p.lng));
+
+    return res;
+}
+
+list<Triangle2> PolygonWithHoles::triangulate() const
 {
     list<Triangle2> res;
     CDT cdt;
 
-    Polygon_2 outer;
-    PointList outline = polygon.getOuterPolygon();
-    assert(outline.size() > 0);
-    outline.pop_back(); //remove duplicate start/end vertex
-    BOOST_FOREACH(const OsmPoint &p, outline)
-        outer.push_back( Point(p.lat, p.lng));
+    insert_polygon(cdt, asCgalPolygon(this->outer));
 
-    insert_polygon(cdt, outer);
-
-    BOOST_FOREACH(const PointList &poly, polygon.getHoles())
-    {
-        PointList hole = poly;
-        hole.pop_back(); //remove duplicate start/end vertex
-        Polygon_2 inner;
-        BOOST_FOREACH(const OsmPoint &p, hole)
-            inner.push_back( Point(p.lat, p.lng));
-
-        insert_polygon(cdt, inner);
-    }
+    BOOST_FOREACH(const PointList &hole, this->getHoles())
+        insert_polygon(cdt, asCgalPolygon(hole));
 
     //Mark facets that are inside the domain bounded by the polygon
     mark_domains(cdt);
@@ -300,10 +304,44 @@ list<Triangle2> triangulation(const PolygonWithHoles &polygon)
     return res;
 }
 
-
-
-list<Triangle2> PolygonWithHoles::triangulate() const
+list<PointList> PolygonWithHoles::getSkeletonFaces() const
 {
-    return triangulation(*this);
-}
+    list<PointList> res;
 
+    Polygon_with_holes poly( asCgalPolygon(this->outer) );
+
+    BOOST_FOREACH(const PointList &hole, this->getHoles())
+        poly.add_hole( asCgalPolygon(hole) );
+
+    SsPtr iss = CGAL::create_interior_straight_skeleton_2(poly);
+
+    for ( Ss::Halfedge_const_iterator i = iss->halfedges_begin(); i != iss->halfedges_end(); ++i )
+    {
+        if (i->is_bisector())
+            continue;
+
+        if (i->is_border())
+            continue;
+
+        PointList face;
+        face.push_back( OsmPoint(i->vertex()->point()[0], i->vertex()->point()[1]));
+        //std::cout << "\t" << i->vertex()->point() << std::endl;
+
+
+        for ( Ss::Halfedge_const_handle ii = i->next(); ii != i; ii = ii->next())
+        {
+            //std::cout << "\t" << ii->vertex()->point() << std::endl;
+            face.push_back( OsmPoint(ii->vertex()->point()[0], ii->vertex()->point()[1]));
+        }
+
+        face.push_back(face.front()); //duplicate first vertex to close polygon
+
+        res.push_back(face);
+        //print_point(i->opposite()->vertex()->point()) ;
+        //std::cout << "->" ;
+        //print_point(i->vertex()->point());
+        //std::cout << " " << ( i->is_bisector() ? "bisector" : "contour" );
+        //std::cout << " " << ( i->is_border() ? "border": "") << std::endl;
+    }
+    return res;
+}

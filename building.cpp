@@ -39,7 +39,7 @@ void addEdges(const PointList &poly, list<LineStrip> &edgesOut, double minHeight
         edgesOut.push_back(horizontalEdge);
     }
     edgesOut.pop_back();    //remove last horizontalEdge, which is identical to the first one;
-    //exit(0);
+
     edgesOut.push_back(lower);
     edgesOut.push_back(upper);
 }
@@ -78,18 +78,15 @@ list<LineStrip> Building::getEdges() const {
     BOOST_FOREACH( const PointList &edge, this->layout.getHoles())
         addEdges( edge, edges, minHeight, totalHeight);
 
-    /// (temporarily) add flat roof triangulation to edge list
-    /*list<Triangle2> tris = layout.triangulate();
-    BOOST_FOREACH( const Triangle2 &tri, tris)
+    list<PointList> faces = layout.getSkeletonFaces();
+    BOOST_FOREACH( const PointList &face, faces)
     {
         LineStrip strip;
-        strip.push_back( Vertex3(tri.v1, totalHeight));
-        strip.push_back( Vertex3(tri.v2, totalHeight));
-        strip.push_back( Vertex3(tri.v3, totalHeight));
-        strip.push_back( Vertex3(tri.v1, totalHeight));
+        BOOST_FOREACH( OsmPoint point, face)
+            strip.push_back( Vertex3(point.lat, point.lng, totalHeight));
 
         edges.push_back(strip);
-    }*/
+    }
 
     return edges;
 }

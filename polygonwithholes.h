@@ -17,6 +17,7 @@ public:
     PolygonWithHoles( const PointList &outer, const list<PointList> &holes);
 
     list<Triangle2>         triangulate() const;
+    list<PointList>         getSkeletonFaces() const;
 
     static PolygonWithHoles fromOsmRelation(const OsmRelation &rel);
     const PointList&        getOuterPolygon() const {return outer;}

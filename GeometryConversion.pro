@@ -11,6 +11,7 @@ CONFIG   += console
 CONFIG   -= app_bundle
 CONFIG   += silent
 CONFIG += debug
+#CONFIG += release
 
 TEMPLATE = app
 
@@ -32,4 +33,6 @@ HEADERS += \
 
 QMAKE_CXXFLAGS += -frounding-math #required by CGAL
 
-LIBS += -lgmp -lCGAL
+LIBS += -lgmp -lCGAL -lboost_thread -lmpfr -lCGAL_Core
+
+#QMAKE_LFLAGS += --as-needed
