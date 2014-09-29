@@ -59,7 +59,7 @@ public:
     float getHeightWithoutRoof() const
     {
         if (height != -1) return height - roofHeight;
-        if (numLevels) return numLevels * 3;
+        if (numLevels != -1) return numLevels * 3;
         return 10; //arbitrary height value
     }
 
@@ -78,8 +78,8 @@ public:
 
     float getRoofHeight() const
     {
-        if (roofHeight != 0.0) return roofHeight;
-        if (roofHeight == 0.0 && numRoofLevels == 0.0) return 0.0;
+        if (roofHeight != -1.0) return roofHeight;
+        if (roofHeight == -1.0 && (numRoofLevels == 0.0 || numRoofLevels == -1.0)) return 0.0;
         return numRoofLevels * 3.0;
     }
 

@@ -23,11 +23,11 @@ Building::Building(PolygonWithHoles layout, BuildingAttributes attributes, strin
 string Building::getName() const { return this->name; }
 
 
-void addOutlineEdges(const PointList &poly, list<LineStrip> &edgesOut, double minHeight, double height) {
+void addOutlineEdges(const PointList &poly, list<LineStrip> &edgesOut, double minHeight, double height, bool addHorizontalEdges, bool addVerticalEdges) {
     LineStrip lower;
     LineStrip upper;
 
-    list<LineStrip> horizontalEdges;
+    list<LineStrip> verticalEdges;
 
     BOOST_FOREACH(const Vector2 &pt, poly)
     {
@@ -35,15 +35,22 @@ void addOutlineEdges(const PointList &poly, list<LineStrip> &edgesOut, double mi
         //cout << "##," << it->lat << "," << it->lng << endl;
         lower.push_back( Vector3( pt, minHeight) );
         upper.push_back( Vector3( pt, height   ) );
-        LineStrip horizontalEdge;
-        horizontalEdge.push_back( Vector3(pt, minHeight));
-        horizontalEdge.push_back( Vector3(pt, height));
-        edgesOut.push_back(horizontalEdge);
+        if (addVerticalEdges)
+        {
+            LineStrip verticalEdge;
+            verticalEdge.push_back( Vector3(pt, minHeight));
+            verticalEdge.push_back( Vector3(pt, height));
+            edgesOut.push_back(verticalEdge);
+        }
     }
-    edgesOut.pop_back();    //remove last horizontalEdge, which is identical to the first one;
+    if (edgesOut.size() > 0)
+        edgesOut.pop_back();    //remove last verticalEdge, which is identical to the first one;
 
-    edgesOut.push_back(lower);
-    edgesOut.push_back(upper);
+    if (addHorizontalEdges)
+    {
+        edgesOut.push_back(lower);
+        edgesOut.push_back(upper);
+    }
 }
 
 void addOutlineFaces(const PointList &poly, list<Triangle3> &facesOut, double minHeight, double height)
@@ -73,19 +80,35 @@ list<LineStrip> Building::getEdges() const {
     list<LineStrip> edges;
 
     float minHeight = this->attributes.getMinHeight();
-    float totalHeight=this->attributes.getTotalHeight();
+    float wallHeight= this->attributes.getHeightWithoutRoof();
+    float roofHeight= this->attributes.getRoofHeight();
 
-    addOutlineEdges( this->layout.getOuterPolygon(), edges, minHeight, totalHeight);
+    if (this->attributes.isFreeStandingRoof())
+    {
+        minHeight = wallHeight;
+    }
+
+
+    addOutlineEdges( this->layout.getOuterPolygon(), edges, minHeight, wallHeight, true, !this->attributes.isFreeStandingRoof() );
 
     BOOST_FOREACH( const PointList &edge, this->layout.getHoles())
-        addOutlineEdges( edge, edges, minHeight, totalHeight);
+        addOutlineEdges( edge, edges, minHeight, wallHeight, true, !this->attributes.isFreeStandingRoof());
 
-    list<LineStrip > faces = layout.getSkeletonFaces();
+    //cout << "Wall height is " << wallHeight << endl;
+    //cout << "Roof Height is " << roofHeight << endl;
+    list<LineStrip > faces;
+    if (roofHeight)
+    {
+        faces = layout.getSkeletonFaces();
+    }
+
+    //no edge faces for flat roofs: their edges have already been added by addOutlineEdges();
+
     BOOST_FOREACH( LineStrip &face, faces)
     {
         BOOST_FOREACH( Vector3 &point, face)
         {
-                point.z += totalHeight;
+                point.z = point.z * roofHeight + wallHeight;
         }
         edges.push_back(face);
     }
@@ -97,15 +120,41 @@ list<Triangle3> Building::getFaces() const {
     list<Triangle3> faces;
 
     float minHeight = this->attributes.getMinHeight();
-    float totalHeight=this->attributes.getTotalHeight();
+    float wallHeight= this->attributes.getHeightWithoutRoof();
+    float roofHeight= this->attributes.getRoofHeight();
 
-    addOutlineFaces( this->layout.getOuterPolygon(), faces, minHeight, totalHeight);
+    if (!this->attributes.isFreeStandingRoof())
+    {
+        addOutlineFaces( this->layout.getOuterPolygon(), faces, minHeight, wallHeight);
 
-    BOOST_FOREACH( const PointList &hole, this->layout.getHoles())
-        addOutlineFaces( hole, faces, minHeight, totalHeight);
+        BOOST_FOREACH( const PointList &hole, this->layout.getHoles())
+            addOutlineFaces( hole, faces, minHeight, wallHeight);
+    }
+
 
     /// add flat roof triangulation
-    list<Triangle3> tris = layout.triangulateRoof();
+    list<Triangle3> tris;
+
+    if (roofHeight != 0.0)
+    {
+        tris = layout.triangulateRoof();
+    }
+    else
+    {
+        list<Triangle2> tris2d = layout.triangulate();
+        BOOST_FOREACH(Triangle2 tri, tris2d)
+        {
+            //swap 2nd and 3rd vertex to invert surface normal
+            tris.push_back(Triangle3( Vector3(tri.v1, 0),
+                                      Vector3(tri.v3, 0),
+                                      Vector3(tri.v2, 0))); //flat roof -> zero height
+        }
+    }
+
+    /** So far, the roof height is just normalized to the interval [0..1];
+     *  So we still have to scale it according to its actual height, and move
+     *  it atop the walls
+    */
     BOOST_FOREACH( Triangle3 tri, tris)
     {
         //swap two vertices to change vertex orientation
@@ -113,9 +162,9 @@ list<Triangle3> Building::getFaces() const {
                      Vector3(tri.v3, totalHeight),
                      Vector3(tri.v2, totalHeight));*/
 
-        tri.v1.z += totalHeight;
-        tri.v2.z += totalHeight;
-        tri.v3.z += totalHeight;
+        tri.v1.z = tri.v1.z * roofHeight + wallHeight;
+        tri.v2.z = tri.v2.z * roofHeight + wallHeight;
+        tri.v3.z = tri.v3.z * roofHeight + wallHeight;
         faces.push_back(tri);
     }
 

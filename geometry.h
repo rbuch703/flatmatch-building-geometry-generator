@@ -33,15 +33,15 @@ typedef list<Vector2> PointList;
 
 bool operator<(const Vector3 a, const Vector3 b);
 
-
-struct Triangle3 {
-    Triangle3( Vector3 v1, Vector3 v2, Vector3 v3): v1(v1), v2(v2), v3(v3) {}
-    Vector3 v1, v2, v3;
-};
-
 struct Triangle2 {
     Triangle2( Vector2 v1, Vector2 v2, Vector2 v3): v1(v1), v2(v2), v3(v3) {}
     Vector2 v1, v2, v3;
+};
+
+struct Triangle3 {
+    Triangle3( Vector3 v1, Vector3 v2, Vector3 v3): v1(v1), v2(v2), v3(v3) {}
+    Triangle3( Triangle2 t, double height): v1(t.v1, height), v2(t.v2, height), v3(t.v3, height) {}
+    Vector3 v1, v2, v3;
 };
 
 #endif // GEOMETRY_H

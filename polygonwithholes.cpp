@@ -406,5 +406,20 @@ list<list<Vector3> > PolygonWithHoles::getSkeletonFaces() const
         //std::cout << " " << ( i->is_border() ? "border": "") << std::endl;
     }
 
+    double maxHeight = 0;
+    BOOST_FOREACH(list<Vector3> &face, res)
+    {
+        BOOST_FOREACH(Vector3 &v, face)
+            if (v.z > maxHeight)
+                maxHeight = v.z;
+    }
+
+    BOOST_FOREACH(list<Vector3> &face, res)
+    {
+        BOOST_FOREACH(Vector3 &v, face)
+            v.z /= maxHeight;
+    }
+
+
     return res;
 }
