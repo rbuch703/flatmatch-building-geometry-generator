@@ -22,7 +22,7 @@ struct OsmPoint {
 
 };
 
-typedef list<OsmPoint> PointList;
+typedef list<OsmPoint> OsmPointList;
 
 bool operator==(const OsmPoint &p1, const OsmPoint &p2);
 bool operator!=(const OsmPoint &p1, const OsmPoint &p2);

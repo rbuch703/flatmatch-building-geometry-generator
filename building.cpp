@@ -22,20 +22,22 @@ Building::Building(PolygonWithHoles layout, BuildingAttributes attributes, strin
 
 string Building::getName() const { return this->name; }
 
-void addEdges(const PointList &poly, list<LineStrip> &edgesOut, double minHeight, double height) {
+
+void addOutlineEdges(const PointList &poly, list<LineStrip> &edgesOut, double minHeight, double height) {
     LineStrip lower;
     LineStrip upper;
 
     list<LineStrip> horizontalEdges;
 
-    for (PointList::const_iterator it = poly.begin(); it != poly.end(); it++)
+    BOOST_FOREACH(const Vector2 &pt, poly)
     {
+
         //cout << "##," << it->lat << "," << it->lng << endl;
-        lower.push_back( Vertex3(it->lat, it->lng, minHeight) );
-        upper.push_back( Vertex3(it->lat, it->lng, height   ) );
+        lower.push_back( Vector3( pt, minHeight) );
+        upper.push_back( Vector3( pt, height   ) );
         LineStrip horizontalEdge;
-        horizontalEdge.push_back( Vertex3(it->lat, it->lng, minHeight));
-        horizontalEdge.push_back( Vertex3(it->lat, it->lng, height));
+        horizontalEdge.push_back( Vector3(pt, minHeight));
+        horizontalEdge.push_back( Vector3(pt, height));
         edgesOut.push_back(horizontalEdge);
     }
     edgesOut.pop_back();    //remove last horizontalEdge, which is identical to the first one;
@@ -44,7 +46,8 @@ void addEdges(const PointList &poly, list<LineStrip> &edgesOut, double minHeight
     edgesOut.push_back(upper);
 }
 
-void addFaces(const PointList &poly, list<Triangle3> &facesOut, double minHeight, double height) {
+void addOutlineFaces(const PointList &poly, list<Triangle3> &facesOut, double minHeight, double height)
+{
 
     PointList::const_iterator p2 = poly.begin();
     PointList::const_iterator p1 = p2++;
@@ -55,10 +58,10 @@ void addFaces(const PointList &poly, list<Triangle3> &facesOut, double minHeight
          *  | / |
          *  A - C
          */
-        Vertex3 A(p1->lat, p1->lng, minHeight);
-        Vertex3 B(p1->lat, p1->lng, height);
-        Vertex3 C(p2->lat, p2->lng, minHeight);
-        Vertex3 D(p2->lat, p2->lng, height);
+        Vector3 A(*p1, minHeight);
+        Vector3 B(*p1, height);
+        Vector3 C(*p2, minHeight);
+        Vector3 D(*p2, height);
 
         facesOut.push_back( Triangle3(A, B, D));
         facesOut.push_back( Triangle3(A, D, C));
@@ -66,24 +69,26 @@ void addFaces(const PointList &poly, list<Triangle3> &facesOut, double minHeight
 }
 
 
-
+//FIXME: add back-conversion
 list<LineStrip> Building::getEdges() const {
     list<LineStrip> edges;
 
     float minHeight = this->attributes.getMinHeight();
     float totalHeight=this->attributes.getTotalHeight();
 
-    addEdges( this->layout.getOuterPolygon(), edges, minHeight, totalHeight );
+    addOutlineEdges( this->layout.getOuterPolygon(), edges, minHeight, totalHeight);
 
     BOOST_FOREACH( const PointList &edge, this->layout.getHoles())
-        addEdges( edge, edges, minHeight, totalHeight);
+        addOutlineEdges( edge, edges, minHeight, totalHeight);
 
     list<PointList> faces = layout.getSkeletonFaces();
     BOOST_FOREACH( const PointList &face, faces)
     {
         LineStrip strip;
-        BOOST_FOREACH( OsmPoint point, face)
-            strip.push_back( Vertex3(point.lat, point.lng, totalHeight));
+        BOOST_FOREACH( Vector2 point, face)
+        {
+            strip.push_back( Vector3(point, totalHeight));
+        }
 
         edges.push_back(strip);
     }
@@ -97,19 +102,19 @@ list<Triangle3> Building::getFaces() const {
     float minHeight = this->attributes.getMinHeight();
     float totalHeight=this->attributes.getTotalHeight();
 
-    addFaces( this->layout.getOuterPolygon(), faces, minHeight, totalHeight );
+    addOutlineFaces( this->layout.getOuterPolygon(), faces, minHeight, totalHeight);
 
     BOOST_FOREACH( const PointList &hole, this->layout.getHoles())
-        addFaces( hole, faces, minHeight, totalHeight);
+        addOutlineFaces( hole, faces, minHeight, totalHeight);
 
     /// add flat roof triangulation
     list<Triangle2> tris = layout.triangulate();
     BOOST_FOREACH( const Triangle2 &tri, tris)
     {
         //swap two vertices to change vertex orientation
-        Triangle3 t( Vertex3(tri.v1, totalHeight),
-                     Vertex3(tri.v3, totalHeight),
-                     Vertex3(tri.v2, totalHeight));
+        Triangle3 t( Vector3(tri.v1, totalHeight),
+                     Vector3(tri.v3, totalHeight),
+                     Vector3(tri.v2, totalHeight));
 
         faces.push_back(t);
     }
@@ -124,7 +129,7 @@ list<Triangle3> Building::getFaces() const {
  * @param vertexIds a dictionary mapping all registered vertices to their respective id
  * @return the vertex id of v
  */
-int getVertexId( Vertex3 v, list<Vertex3> &vertices, map<Vertex3, int> &vertexIds)
+int getVertexId( Vector3 v, list<Vector3> &vertices, map<Vector3, int> &vertexIds)
 {
     if (vertexIds.count(v) == 0)
     {
@@ -135,11 +140,11 @@ int getVertexId( Vertex3 v, list<Vertex3> &vertices, map<Vertex3, int> &vertexId
 }
 
 
-string Building::toJSON() const {
+string Building::toJSON(const OsmPoint &center) const {
     stringstream ss(ios_base::out);
 
-    list<Vertex3> vertices;
-    map<Vertex3, int> vertexIds;
+    list<Vector3> vertices;
+    map<Vector3, int> vertexIds;
 
     ss << "{" << endl;
     ss << "\t\"id\": \"" << this->name << "\"," << endl;
@@ -153,7 +158,7 @@ string Building::toJSON() const {
         ss << (!isFirstEdge? ",":"") << endl << "\t\t[";
         isFirstEdge = false;
         bool isFirstVertex = true;
-        BOOST_FOREACH(Vertex3 v, edge)
+        BOOST_FOREACH(Vector3 v, edge)
         {
             if (!isFirstVertex)
                 ss << ",";
@@ -177,8 +182,8 @@ string Building::toJSON() const {
         isFirstFace = false;
 
         ss << getVertexId(tri.v1, vertices, vertexIds) << ","
-           << getVertexId(tri.v2, vertices, vertexIds) << ","
-           << getVertexId(tri.v3, vertices, vertexIds);
+           << getVertexId(tri.v3, vertices, vertexIds) << ","
+           << getVertexId(tri.v2, vertices, vertexIds);
     }
 
 
@@ -187,15 +192,21 @@ string Building::toJSON() const {
     ss << "\t\"vertices\": [";
 
     bool isFirstVertex = true;
-    BOOST_FOREACH(Vertex3 v, vertices)
+    BOOST_FOREACH(Vector3 v, vertices)
     {
         if (!isFirstVertex)
             ss << ",";
         isFirstVertex = false;
 
+        static const double EARTH_CIRCUMFERENCE = 2 * 3.141592 * (6378.1 * 1000); // [m]
+        double latToYFactor = 1/360.0 * EARTH_CIRCUMFERENCE;
+        double lngToXFactor = 1/360.0 * EARTH_CIRCUMFERENCE * cos( center.lat / 180 * 3.141592);
+
+        double lng = v.x / lngToXFactor + center.lng;
+        double lat = v.y / latToYFactor + center.lat;
         // precision of 8 decimal places has been tested experimentally to be sufficient
         ss << std::setprecision(8);
-        ss << "[" << v.x << "," << v.y << "," << v.z << "]";
+        ss << "[" << lat << "," << lng << "," << v.z << "]";
     }
 
     ss << "]" << endl;

@@ -1,6 +1,7 @@
 #include "polygonwithholes.h"
 
 #include <assert.h>
+
 #include <boost/foreach.hpp>
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
@@ -25,7 +26,7 @@ typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef K::Point_2 Point;
 typedef CGAL::Polygon_2<K> Polygon_2;
 typedef CGAL::Polygon_with_holes_2<K> Polygon_with_holes ;
-//typedef CGAL::Vector_2 Vector2;
+//typedef CGAL::Vector_2<K> Vector2;
 typedef CGAL::Triangulation_vertex_base_2<K> Vb;
 typedef CGAL::Triangulation_face_base_with_info_2<FaceInfo2,K> Fbb;
 typedef CGAL::Constrained_triangulation_face_base_2<K,Fbb> Fb;
@@ -38,7 +39,6 @@ typedef CGAL::Polygon_2<K> Polygon_2;
 typedef CGAL::Straight_skeleton_2<K> Ss ;
 typedef boost::shared_ptr<Ss> SsPtr ;
 
-
 using namespace std;
 
 
@@ -47,9 +47,9 @@ PolygonWithHoles::PolygonWithHoles( ) {}
 bool isClockwise(const PointList &poly)
 {
     list<Point> points;
-    BOOST_FOREACH(const OsmPoint p, poly)
+    BOOST_FOREACH (const Vector2 p, poly)
     {
-        points.push_back(Point(p.lat, p.lng ));
+        points.push_back(Point(p.x, p.y));
         //cout << p.lat << "," << p.lng << endl;
     }
     //cout << endl;
@@ -65,49 +65,16 @@ bool isClockwise(const PointList &poly)
     return pgn.orientation() == CGAL::CLOCKWISE;
 }
 
-struct Vector2 {
-    Vector2(): x(0), y(0) {}
-    Vector2(double x, double y): x(x), y(y) {}
-    double x, y;
-
-};
-
-Vector2 operator-(Vector2 v1, Vector2 v2) { return Vector2(v1.x - v2.x, v1.y - v2.y); }
-Vector2 operator+(Vector2 v1, Vector2 v2) { return Vector2(v1.x + v2.x, v1.y + v2.y); }
-Vector2 operator*(double d, Vector2 v) { return Vector2(d*v.x , d*v.y); }
-
-double dot(Vector2 v1, Vector2 v2) { return v1.x * v2.x + v1.y * v2.y; }
-double length(Vector2 v) { return sqrt(dot(v,v));}
-Vector2 normalized(Vector2 v) { double len = length(v); return Vector2( v.x/len, v.y/=len);}
-
-double getDistance(Vector2 vLine1, Vector2 vLine2, Vector2 vPos)
-{
-    Vector2 vLinePos = vLine1;
-    Vector2 vLineDir = normalized(vLine2 - vLine1);
-
-    Vector2 v = vLinePos - vPos;
-    double dist = length( v - dot(v, vLineDir) * vLineDir);
-    return dist;
-}
-
-double getDistance(PointList::iterator vLine1, PointList::iterator vLine2, PointList::iterator vPos)
-{
-    return getDistance( Vector2(vLine1->lat, vLine1->lng),
-                        Vector2(vLine2->lat, vLine2->lng),
-                        Vector2(vPos  ->lat, vPos  ->lng));
-}
-
-
 void simplifyPolygon( PointList &poly)
 {
     PointList::iterator pNext = poly.begin();
     PointList::iterator pPrev = pNext++;
     PointList::iterator pHere = pNext++;
 
-    static const double MAX_DIST = 1E-5;//FIXME: guessed value
+    static const double MAX_DIST = 0.3;//[m] FIXME: guessed value
     while (pNext != poly.end())
     {
-        double dist = getDistance(pPrev, pNext, pHere);
+        double dist = getDistance(*pPrev, *pNext, *pHere);
         if (dist < MAX_DIST)
         {
             pHere = poly.erase(pHere);
@@ -126,7 +93,7 @@ void simplifyPolygon( PointList &poly)
     --(--pPrev);    //end-1 is last (=first) vertex, end-2 is its predecessor
     pNext = poly.begin();
     pNext++;
-    if ( getDistance(pPrev, pNext, pHere) < MAX_DIST)
+    if ( getDistance(*pPrev, *pNext, *pHere) < MAX_DIST)
     {
         /*cout << "Prev:" << pPrev->lat << ", " << pPrev->lng << endl;
         cout << "Here:" << pHere->lat << ", " << pHere->lng << endl;
@@ -139,15 +106,34 @@ void simplifyPolygon( PointList &poly)
 
 }
 
-PolygonWithHoles::PolygonWithHoles( const PointList &outer, const list<PointList> &holes):
-    outer(outer), holes(holes)
+PolygonWithHoles::PolygonWithHoles(const OsmPointList &outer, const list<OsmPointList> &holes, const OsmPoint center)
 {
-    /*
-    BOOST_FOREACH(const OsmPoint p, outer)
-        cout << p.lat << "," << p.lng << endl;
-    cout << endl;*/
 
+    static const double EARTH_CIRCUMFERENCE = 2 * 3.141592 * (6378.1 * 1000); // [m]
+    double latToYFactor = 1/360.0 * EARTH_CIRCUMFERENCE;
+    double lngToXFactor = 1/360.0 * EARTH_CIRCUMFERENCE * cos( center.lat / 180 * 3.141592);
+
+    BOOST_FOREACH (const OsmPoint pt, outer)
+    {
+        double dLat = pt.lat - center.lat;
+        double dLng = pt.lng - center.lng;
+        this->outer.push_back( Vector2( dLng * lngToXFactor, dLat * latToYFactor ));
+    }
+
+    BOOST_FOREACH (const OsmPointList & hole, holes)
+    {
+        PointList convertedHole;
+        BOOST_FOREACH (const OsmPoint pt, hole)
+        {
+            double dLat = pt.lat - center.lat;
+            double dLng = pt.lng - center.lng;
+            convertedHole.push_back( Vector2( dLng * lngToXFactor, dLat * latToYFactor ));
+        }
+        this->holes.push_back(convertedHole);
+    }
     //FIXME: should not be done here, but rather in 'Building' before constructing the PolygonWIthHoles
+
+
     simplifyPolygon(this->outer);
 
     /** CGALs definition for Polygons with holes includes that the outer polygon
@@ -158,7 +144,7 @@ PolygonWithHoles::PolygonWithHoles( const PointList &outer, const list<PointList
     if (isClockwise(this->outer))
         this->outer.reverse();
 
-    BOOST_FOREACH(PointList &poly, this->holes)
+    BOOST_FOREACH (PointList &poly, this->holes)
     {
         if (!isClockwise(poly))
             poly.reverse();
@@ -173,9 +159,9 @@ PolygonWithHoles::PolygonWithHoles( const PointList &outer, const list<PointList
 }
 
 
-PolygonWithHoles PolygonWithHoles::fromOsmRelation(const OsmRelation &rel)
+PolygonWithHoles PolygonWithHoles::fromOsmRelation(const OsmRelation &rel, OsmPoint center)
 {
-    const PointList *outer = NULL;
+    const OsmPointList *outer = NULL;
     for (list<OsmRelationMember>::const_iterator member = rel.members.begin(); member != rel.members.end(); member++)
     {
         if (member->role == "outer")
@@ -186,7 +172,7 @@ PolygonWithHoles PolygonWithHoles::fromOsmRelation(const OsmRelation &rel)
     }
     assert(outer);
 
-    list<PointList> holes;
+    list<OsmPointList> holes;
     for (list<OsmRelationMember>::const_iterator member = rel.members.begin(); member != rel.members.end(); member++)
     {
         if (&member->way.points == outer)
@@ -197,7 +183,7 @@ PolygonWithHoles PolygonWithHoles::fromOsmRelation(const OsmRelation &rel)
 
     }
 
-    return PolygonWithHoles(*outer, holes);
+    return PolygonWithHoles(*outer, holes, center);
 }
 
 void mark_domains(CDT& ct, CDT::Face_handle start, int index,
@@ -266,8 +252,8 @@ Polygon_2 asCgalPolygon(const PointList &poly)
     PointList tmp = poly;
     tmp.pop_back(); //remove duplicate start/end vertex
 
-    BOOST_FOREACH(const OsmPoint &p, tmp)
-        res.push_back( Point(p.lat, p.lng));
+    BOOST_FOREACH(const Vector2 &p, tmp)
+        res.push_back( Point(p.x, p.y));
 
     return res;
 }
@@ -294,9 +280,9 @@ list<Triangle2> PolygonWithHoles::triangulate() const
         ++count;
         CDT::Triangle t = cdt.triangle(fit);
 
-        res.push_back( Triangle2 ( Vertex2( t[0][0], t[0][1]),
-                                   Vertex2( t[1][0], t[1][1]),
-                                   Vertex2( t[2][0], t[2][1])));
+        res.push_back( Triangle2 ( Vector2( t[0][0], t[0][1]),
+                                   Vector2( t[1][0], t[1][1]),
+                                   Vector2( t[2][0], t[2][1])));
 
     }
     //std::cout << "There are " << count << " facets in the domain." << std::endl;
@@ -324,14 +310,14 @@ list<PointList> PolygonWithHoles::getSkeletonFaces() const
             continue;
 
         PointList face;
-        face.push_back( OsmPoint(i->vertex()->point()[0], i->vertex()->point()[1]));
+        face.push_back( Vector2(i->vertex()->point()[0], i->vertex()->point()[1]));
         //std::cout << "\t" << i->vertex()->point() << std::endl;
 
 
         for ( Ss::Halfedge_const_handle ii = i->next(); ii != i; ii = ii->next())
         {
             //std::cout << "\t" << ii->vertex()->point() << std::endl;
-            face.push_back( OsmPoint(ii->vertex()->point()[0], ii->vertex()->point()[1]));
+            face.push_back( Vector2(ii->vertex()->point()[0], ii->vertex()->point()[1]));
         }
 
         face.push_back(face.front()); //duplicate first vertex to close polygon
@@ -343,5 +329,6 @@ list<PointList> PolygonWithHoles::getSkeletonFaces() const
         //std::cout << " " << ( i->is_bisector() ? "bisector" : "contour" );
         //std::cout << " " << ( i->is_border() ? "border": "") << std::endl;
     }
+
     return res;
 }

@@ -1,28 +1,50 @@
 #ifndef GEOMETRY_H
 #define GEOMETRY_H
 
-struct Vertex2 {
-    Vertex2(double x, double y): x(x), y(y) {}
+#include <list>
+#include <math.h>
+
+using namespace std;
+
+struct Vector2 {
+    Vector2(): x(0), y(0) {}
+    Vector2(double x, double y): x(x), y(y) {}
     double x, y;
+
 };
 
-struct Vertex3 {
-    Vertex3(double x, double y, double z): x(x), y(y), z(z) {}
-    Vertex3(Vertex2 v, double z): x(v.x), y(v.y), z(z) {}
+Vector2 operator -(Vector2 v1, Vector2 v2);
+Vector2 operator +(Vector2 v1, Vector2 v2);
+Vector2 operator *(double d, Vector2 v);
+
+double dot(Vector2 v1, Vector2 v2);
+double length(Vector2 v);
+Vector2 normalized(Vector2 v);
+double getDistance(Vector2 vLine1, Vector2 vLine2, Vector2 vPos);
+
+
+struct Vector3 {
+    Vector3(double x, double y, double z): x(x), y(y), z(z) {}
+    Vector3(Vector2 v, double z): x(v.x), y(v.y), z(z) {}
     double x, y, z;
 };
 
-bool operator<(const Vertex3 a, const Vertex3 b);
+typedef list<Vector2> PointList;
+
+bool operator<(const Vector3 a, const Vector3 b);
 
 
 struct Triangle3 {
-    Triangle3( Vertex3 v1, Vertex3 v2, Vertex3 v3): v1(v1), v2(v2), v3(v3) {}
-    Vertex3 v1, v2, v3;
+    Triangle3( Vector3 v1, Vector3 v2, Vector3 v3): v1(v1), v2(v2), v3(v3) {}
+    Vector3 v1, v2, v3;
 };
 
 struct Triangle2 {
-    Triangle2( Vertex2 v1, Vertex2 v2, Vertex2 v3): v1(v1), v2(v2), v3(v3) {}
-    Vertex2 v1, v2, v3;
+    Triangle2( Vector2 v1, Vector2 v2, Vector2 v3): v1(v1), v2(v2), v3(v3) {}
+    Vector2 v1, v2, v3;
 };
+
+Vector2 toLocalPoint(double lat, double lng, double centerLat , double centerLng);
+Vector2 fromLocalPoint(double localX, double localY, double centerLat, double centerLng);
 
 #endif // GEOMETRY_H

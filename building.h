@@ -9,14 +9,14 @@
 
 using namespace std;
 
-typedef list<Vertex3> LineStrip;
+typedef list<Vector3> LineStrip;
 
 class Building
 {
 public:
     Building();
     Building(PolygonWithHoles layout, BuildingAttributes attributes, string name = "");
-    string toJSON() const;
+    string toJSON(const OsmPoint &center) const;
     string getName() const;
 private:
     list<LineStrip> getEdges() const;

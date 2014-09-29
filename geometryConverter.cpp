@@ -242,6 +242,11 @@ void GeometryConverter::onDownloadFinished()
         map<uint64_t, OsmPoint > nodes = getPoints(elements);
         cout << "parsed " << nodes.size() << " nodes" << endl;
 
+        OsmPoint center;
+        //FIXME: replace by center point of the REST query
+        center.lat = 52.1; //close enough to Magdeburg for now;
+        center.lng = 11.6;
+
         map<uint64_t, OsmWay> ways = getWays(elements, nodes);
         map<uint64_t, OsmRelation> relations = getRelations(elements, ways);
 
@@ -257,7 +262,7 @@ void GeometryConverter::onDownloadFinished()
         {
             promoteTags(rel->second);
             buildings.push_back( Building(
-                PolygonWithHoles::fromOsmRelation(rel->second),
+                PolygonWithHoles::fromOsmRelation(rel->second, center),
                 BuildingAttributes( rel->second.tags ),
                 string("r")+QString::number(rel->second.id).toStdString() ));
         }
@@ -265,7 +270,7 @@ void GeometryConverter::onDownloadFinished()
         for (map<uint64_t, OsmWay>::const_iterator way = ways.begin(); way != ways.end(); way++)
         {
             buildings.push_back( Building(
-                PolygonWithHoles(way->second.points, list<PointList>()),
+                PolygonWithHoles(way->second.points, list<OsmPointList>(), center),
                 BuildingAttributes ( way->second.tags),
                 string("w")+QString::number(way->second.id).toStdString() ));
         }
@@ -279,7 +284,7 @@ void GeometryConverter::onDownloadFinished()
                 cerr << ",";
 
             isFirstBuilding = false;
-            cerr << endl << it->toJSON();
+            cerr << endl << it->toJSON(center);
 
         }
         cerr << "]" << endl;

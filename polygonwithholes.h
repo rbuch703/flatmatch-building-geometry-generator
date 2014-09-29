@@ -14,12 +14,12 @@ class PolygonWithHoles
 {
 public:
     PolygonWithHoles( );
-    PolygonWithHoles( const PointList &outer, const list<PointList> &holes);
+    PolygonWithHoles( const OsmPointList &outer, const list<OsmPointList> &holes, const OsmPoint center);
 
     list<Triangle2>         triangulate() const;
     list<PointList>         getSkeletonFaces() const;
 
-    static PolygonWithHoles fromOsmRelation(const OsmRelation &rel);
+    static PolygonWithHoles fromOsmRelation(const OsmRelation &rel, OsmPoint center);
     const PointList&        getOuterPolygon() const {return outer;}
     const list<PointList>&  getHoles() const {return holes;}
 //    string edgesToJson() const;
