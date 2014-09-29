@@ -24,15 +24,3 @@ double getDistance(Vector2 vLine1, Vector2 vLine2, Vector2 vPos)
     double dist = length( v - dot(v, vLineDir) * vLineDir);
     return dist;
 }
-
-Vector2 toLocalPoint(double lat, double lng, double centerLat , double centerLng)
-{
-    static const double EARTH_CIRCUMFERENCE = 2 * 3.141592 * (6378.1 * 1000); // [m]
-    double latToYFactor = 1/360.0 * EARTH_CIRCUMFERENCE;
-    double lngToXFactor = 1/360.0 * EARTH_CIRCUMFERENCE * cos( centerLat / 180 * 3.141592);
-
-    double dLat = lat - centerLat;
-    double dLng = lng - centerLng;
-    return Vector2( dLng * lngToXFactor, dLat * latToYFactor );
-}
-

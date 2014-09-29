@@ -7,6 +7,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/Triangulation_face_base_with_info_2.h>
+#include <CGAL/Triangulation_vertex_base_with_info_2.h>
 #include <CGAL/Polygon_2.h>
 #include<CGAL/Polygon_with_holes_2.h>
 #include<CGAL/create_straight_skeleton_from_polygon_with_holes_2.h>
@@ -22,12 +23,18 @@ struct FaceInfo2
     }
 };
 
+struct VertexInfo
+{
+    VertexInfo(): height(0.0) {}
+    double height;
+};
+
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef K::Point_2 Point;
 typedef CGAL::Polygon_2<K> Polygon_2;
 typedef CGAL::Polygon_with_holes_2<K> Polygon_with_holes ;
 //typedef CGAL::Vector_2<K> Vector2;
-typedef CGAL::Triangulation_vertex_base_2<K> Vb;
+typedef CGAL::Triangulation_vertex_base_with_info_2<VertexInfo,K> Vb;
 typedef CGAL::Triangulation_face_base_with_info_2<FaceInfo2,K> Fbb;
 typedef CGAL::Constrained_triangulation_face_base_2<K,Fbb> Fb;
 typedef CGAL::Triangulation_data_structure_2<Vb,Fb> TDS;
@@ -290,9 +297,72 @@ list<Triangle2> PolygonWithHoles::triangulate() const
     return res;
 }
 
-list<PointList> PolygonWithHoles::getSkeletonFaces() const
+list<Triangle3> PolygonWithHoles::triangulateRoof() const
 {
-    list<PointList> res;
+    list<Triangle3> res;
+
+    list< list<Vector3> > skeletonFaces = this->getSkeletonFaces();
+
+
+    BOOST_FOREACH(const list<Vector3> &face, skeletonFaces)
+    {
+        CDT cdt;
+        Polygon_2 poly;
+        map< pair<double, double>, double> dictHeight;
+
+
+        //cout << "==============" << endl;
+        bool isFirst = true;
+        BOOST_FOREACH(Vector3 pt, face)
+        {
+            if (isFirst)
+            {
+                isFirst = false;
+                continue;   //do not add duplicate version of first/last vertex
+            }
+            /*map each 2D vertex to its original height, to be able to reconstruct
+             *the vertex height values after 2d triangulation */
+            //cout << "adding " << std::setprecision(8) << "(" << pt.x << ", " << pt.y << ") ->" << pt.z << endl;
+
+            poly.push_back(Point(pt.x, pt.y));
+            if (dictHeight.count(make_pair(pt.x, pt.y)) == 0)
+            {
+                dictHeight.insert( make_pair( make_pair(pt.x, pt.y), pt.z));
+            }
+            else
+                assert( dictHeight.at(make_pair(pt.x, pt.y)) == pt.z);
+
+        }
+
+        insert_polygon(cdt, poly);
+        mark_domains(cdt);
+
+        for (CDT::Finite_faces_iterator fit=cdt.finite_faces_begin();
+             fit!=cdt.finite_faces_end();++fit)
+        {
+            if (! fit->info().in_domain() )
+                continue;
+
+            CDT::Triangle t = cdt.triangle(fit);
+            //cout << "v1: (" << t[0][0] << ", " << t[0][1] << ")" << endl;
+            Vector3 v1( t[0][0], t[0][1], dictHeight.at(make_pair(t[0][0], t[0][1])));
+            //cout << "v2: (" << t[1][0] << ", " << t[1][1] << ")" << endl;
+            Vector3 v2( t[1][0], t[1][1], dictHeight.at(make_pair(t[1][0], t[1][1])));
+            //cout << "v3: (" << t[2][0] << ", " << t[2][1] << ")" << endl;
+            Vector3 v3( t[2][0], t[2][1], dictHeight.at(make_pair(t[2][0], t[2][1])));
+
+            res.push_back( Triangle3 ( v1, v3, v2));
+        }
+    }
+    //std::cout << "There are " << count << " facets in the domain." << std::endl;
+    //return 0;
+    return res;
+}
+
+
+list<list<Vector3> > PolygonWithHoles::getSkeletonFaces() const
+{
+    list<list<Vector3> > res;
 
     Polygon_with_holes poly( asCgalPolygon(this->outer) );
 
@@ -309,15 +379,21 @@ list<PointList> PolygonWithHoles::getSkeletonFaces() const
         if (i->is_border())
             continue;
 
-        PointList face;
-        face.push_back( Vector2(i->vertex()->point()[0], i->vertex()->point()[1]));
+        list<Vector3> face;
+        Vector2 base1 = Vector2(i->vertex()->point()[0], i->vertex()->point()[1]);
+        Vector2 base2 = Vector2(i->opposite()->vertex()->point()[0],
+                                i->opposite()->vertex()->point()[1]);
+
+        face.push_back(Vector3( base1, 0) );
+
         //std::cout << "\t" << i->vertex()->point() << std::endl;
 
 
         for ( Ss::Halfedge_const_handle ii = i->next(); ii != i; ii = ii->next())
         {
             //std::cout << "\t" << ii->vertex()->point() << std::endl;
-            face.push_back( Vector2(ii->vertex()->point()[0], ii->vertex()->point()[1]));
+            Vector2 pt(ii->vertex()->point()[0], ii->vertex()->point()[1]);
+            face.push_back( Vector3( pt, getDistance(base1, base2, pt) ));
         }
 
         face.push_back(face.front()); //duplicate first vertex to close polygon

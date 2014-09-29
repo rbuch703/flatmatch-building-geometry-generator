@@ -69,7 +69,6 @@ void addOutlineFaces(const PointList &poly, list<Triangle3> &facesOut, double mi
 }
 
 
-//FIXME: add back-conversion
 list<LineStrip> Building::getEdges() const {
     list<LineStrip> edges;
 
@@ -81,16 +80,14 @@ list<LineStrip> Building::getEdges() const {
     BOOST_FOREACH( const PointList &edge, this->layout.getHoles())
         addOutlineEdges( edge, edges, minHeight, totalHeight);
 
-    list<PointList> faces = layout.getSkeletonFaces();
-    BOOST_FOREACH( const PointList &face, faces)
+    list<LineStrip > faces = layout.getSkeletonFaces();
+    BOOST_FOREACH( LineStrip &face, faces)
     {
-        LineStrip strip;
-        BOOST_FOREACH( Vector2 point, face)
+        BOOST_FOREACH( Vector3 &point, face)
         {
-            strip.push_back( Vector3(point, totalHeight));
+                point.z += totalHeight;
         }
-
-        edges.push_back(strip);
+        edges.push_back(face);
     }
 
     return edges;
@@ -108,15 +105,18 @@ list<Triangle3> Building::getFaces() const {
         addOutlineFaces( hole, faces, minHeight, totalHeight);
 
     /// add flat roof triangulation
-    list<Triangle2> tris = layout.triangulate();
-    BOOST_FOREACH( const Triangle2 &tri, tris)
+    list<Triangle3> tris = layout.triangulateRoof();
+    BOOST_FOREACH( Triangle3 tri, tris)
     {
         //swap two vertices to change vertex orientation
-        Triangle3 t( Vector3(tri.v1, totalHeight),
+        /*Triangle3 t( Vector3(tri.v1, totalHeight),
                      Vector3(tri.v3, totalHeight),
-                     Vector3(tri.v2, totalHeight));
+                     Vector3(tri.v2, totalHeight));*/
 
-        faces.push_back(t);
+        tri.v1.z += totalHeight;
+        tri.v2.z += totalHeight;
+        tri.v3.z += totalHeight;
+        faces.push_back(tri);
     }
 
     return faces;

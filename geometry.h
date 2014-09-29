@@ -44,7 +44,4 @@ struct Triangle2 {
     Vector2 v1, v2, v3;
 };
 
-Vector2 toLocalPoint(double lat, double lng, double centerLat , double centerLng);
-Vector2 fromLocalPoint(double localX, double localY, double centerLat, double centerLng);
-
 #endif // GEOMETRY_H
