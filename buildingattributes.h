@@ -46,7 +46,8 @@ public:
         if (tags.count("min_height"))
             minHeight = getLengthInMeters(tags.at("min_height") );
 
-        isJustRoof = tags.count("building") && tags.at("building") == "roof";
+        isJustRoof = (tags.count("building") && tags.at("building") == "roof") ||
+                     (tags.count("building:part") && tags.at("building:part") == "roof");
     }
 
     float getMinHeight() const
@@ -58,7 +59,8 @@ public:
 
     float getHeightWithoutRoof() const
     {
-        if (height != -1) return height - roofHeight;
+        float rh = roofHeight != -1? roofHeight : (numRoofLevels != -1 ? numRoofLevels*3 : 0);
+        if (height != -1) return height - rh;
         if (numLevels != -1) return numLevels * 3;
         return 10; //arbitrary height value
     }
