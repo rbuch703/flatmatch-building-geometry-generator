@@ -215,9 +215,9 @@ void promoteTags(OsmRelation &relation)
         {
             if (relation.tags.count(tag->first) == 0)
             {
-                assert(false && "untested code");
+                //assert(false && "untested code");
                 relation.tags.insert(*tag);
-                cout << "[DBG] adding " << (tag->first) << "=" << tag->second << " to relation" << relation.id << endl;
+                cout << "[DBG] adding " << (tag->first) << "=" << tag->second << " to relation " << relation.id << endl;
             }
         }
 
