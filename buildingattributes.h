@@ -2,6 +2,7 @@
 #define BUILDINGATTRIBUTES_H
 
 #include "osmtypes.h"
+#include <string>
 
 /**
  * Note: the meaning of the height/roof:height and building:levels/roof:levels pairs
@@ -10,6 +11,9 @@
  *       - for height/roof:height, the total height is 'height' alone, and the height of
  *         the building without the roof is the difference of the two
  */
+
+using namespace std;
+
 
 //FIXME: add parsing of roof shapes
 
@@ -23,10 +27,10 @@ class BuildingAttributes {
 public:
 
     BuildingAttributes(): numLevels(-1), numRoofLevels(-1), height(-1), roofHeight(-1),
-        isJustRoof(false), minHeight(-1), skipLevels(-1) {}
+        isJustRoof(false), minHeight(-1), skipLevels(-1), wallColor(""), roofColor("") {}
 
     BuildingAttributes(const Tags &tags): numLevels(-1), numRoofLevels(-1), height(-1), roofHeight(-1),
-        isJustRoof(false), minHeight(-1), skipLevels(-1)
+        isJustRoof(false), minHeight(-1), skipLevels(-1), wallColor(""), roofColor("")
     {
         if ( tags.count("building:levels"))
             numLevels = atof( tags.at("building:levels").c_str() );
@@ -48,6 +52,22 @@ public:
 
         isJustRoof = (tags.count("building") && tags.at("building") == "roof") ||
                      (tags.count("building:part") && tags.at("building:part") == "roof");
+
+        /* OSM tag names are supposed to use British spelling, but American spelling
+         * is incorrectly used sometimes. To compensate, we parse both, and let the
+         * British one override the American one if both are present */
+        if (tags.count("building:color"))
+            wallColor = tags.at("building:color");
+
+        if (tags.count("building:colour"))
+            wallColor = tags.at("building:colour");
+
+        if (tags.count("roof:color"))
+            roofColor = tags.at("roof:color");
+
+        if (tags.count("roof:colour"))
+            roofColor = tags.at("roof:colour");
+
     }
 
     float getMinHeight() const
@@ -86,7 +106,10 @@ public:
     }
 
     bool isFreeStandingRoof() const { return isJustRoof;}
-    bool heightIsGuessed() const { return (height == -1) && (numLevels == 0);}
+    bool heightIsGuessed() const { return (height == -1) && (numLevels == -1);}
+
+    string getWallColor() const { return wallColor;}
+    string getRoofColor() const { return roofColor;}
 private:
     float numLevels;
     float numRoofLevels;
@@ -95,6 +118,8 @@ private:
     bool isJustRoof;
     float minHeight;
     float skipLevels;
+    string wallColor;
+    string roofColor;
 };
 
 #endif // BUILDINGATTRIBUTES_H

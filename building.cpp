@@ -46,6 +46,7 @@ void addOutlineEdges(const PointList &poly, list<LineStrip> &edgesOut, double mi
     if (edgesOut.size() > 0)
         edgesOut.pop_back();    //remove last verticalEdge, which is identical to the first one;
 
+
     if (addHorizontalEdges)
     {
         edgesOut.push_back(lower);
@@ -79,20 +80,18 @@ void addOutlineFaces(const PointList &poly, list<Triangle3> &facesOut, double mi
 list<LineStrip> Building::getEdges() const {
     list<LineStrip> edges;
 
-    float minHeight = this->attributes.getMinHeight();
+    //float minHeight = this->attributes.getMinHeight();
     float wallHeight= this->attributes.getHeightWithoutRoof();
     float roofHeight= this->attributes.getRoofHeight();
 
-    if (this->attributes.isFreeStandingRoof())
-    {
-        minHeight = wallHeight;
-    }
+    //if (this->attributes.isFreeStandingRoof())
+    //    minHeight = wallHeight;
 
 
-    addOutlineEdges( this->layout.getOuterPolygon(), edges, minHeight, wallHeight, true, !this->attributes.isFreeStandingRoof() );
+    //addOutlineEdges( this->layout.getOuterPolygon(), edges, minHeight, wallHeight, false, !this->attributes.isFreeStandingRoof() );
 
-    BOOST_FOREACH( const PointList &edge, this->layout.getHoles())
-        addOutlineEdges( edge, edges, minHeight, wallHeight, true, !this->attributes.isFreeStandingRoof());
+    //BOOST_FOREACH( const PointList &edge, this->layout.getHoles())
+    //    addOutlineEdges( edge, edges, minHeight, wallHeight, true, !this->attributes.isFreeStandingRoof());
 
     //cout << "Wall height is " << wallHeight << endl;
     //cout << "Roof Height is " << roofHeight << endl;
@@ -103,33 +102,64 @@ list<LineStrip> Building::getEdges() const {
     }
 
     //no edge faces for flat roofs: their edges have already been added by addOutlineEdges();
-
     BOOST_FOREACH( LineStrip &face, faces)
     {
         BOOST_FOREACH( Vector3 &point, face)
         {
                 point.z = point.z * roofHeight + wallHeight;
+                //cout << point.x << ", " << point.y << endl;
         }
+
+        //face.pop_back();
         edges.push_back(face);
+
+        //return edges;
     }
 
     return edges;
 }
 
+list<LineStrip> Building::getOutlines() const {
+    list<LineStrip> outlines;
+
+    float height = this->attributes.getHeightWithoutRoof();
+
+    LineStrip outline;
+    PointList lst = this->layout.getOuterPolygon();
+    BOOST_FOREACH( Vector2 v, lst)
+        outline.push_back(Vector3(v, height));
+
+    outlines.push_back(outline);
+
+    BOOST_FOREACH( const PointList &hole, this->layout.getHoles())
+    {
+        LineStrip outline;
+        BOOST_FOREACH( Vector2 v, hole)
+            outline.push_back(Vector3(v, height));
+
+        outlines.push_back(outline);
+    }
+
+    return outlines;
+}
+
+
+
 list<Triangle3> Building::getFaces() const {
     list<Triangle3> faces;
 
-    float minHeight = this->attributes.getMinHeight();
+    //float minHeight = this->attributes.getMinHeight();
     float wallHeight= this->attributes.getHeightWithoutRoof();
     float roofHeight= this->attributes.getRoofHeight();
 
+    /*
     if (!this->attributes.isFreeStandingRoof())
     {
         addOutlineFaces( this->layout.getOuterPolygon(), faces, minHeight, wallHeight);
 
         BOOST_FOREACH( const PointList &hole, this->layout.getHoles())
             addOutlineFaces( hole, faces, minHeight, wallHeight);
-    }
+    }*/
 
 
     /// add flat roof triangulation
@@ -197,9 +227,15 @@ string Building::toJSON(const OsmPoint &center) const {
 
     ss << "{" << endl;
     ss << "\t\"id\": \"" << this->name << "\"," << endl;
+    float minHeight = this->attributes.isFreeStandingRoof() ?
+                        this->attributes.getHeightWithoutRoof() :
+                        this->attributes.getMinHeight();
 
+    ss << "\t\"minHeightInMeters\": " << minHeight << "," << endl;
+
+
+    /// ====== store drawable edges =====
     ss << "\t\"edges\": [";
-    //list<LineStrip> edges = ;
 
     bool isFirstEdge = true;
     BOOST_FOREACH(const LineStrip &edge, this->getEdges())
@@ -217,10 +253,31 @@ string Building::toJSON(const OsmPoint &center) const {
 
         ss << "]";
     }
-
-    assert(vertexIds.size() == vertices.size());
     ss << endl << "\t]," << endl;
 
+    /// ====== store building outlines (outer polygon and all holes) =====
+    ss << "\t\"outlines\": [";
+
+    bool isFirstOutline = true;
+    BOOST_FOREACH(const LineStrip &edge, this->getOutlines())
+    {
+        ss << (!isFirstOutline ? ",":"") << endl << "\t\t[";
+        isFirstOutline = false;
+        bool isFirstVertex = true;
+        BOOST_FOREACH(Vector3 v, edge)
+        {
+            if (!isFirstVertex)
+                ss << ",";
+            isFirstVertex = false;
+            ss << getVertexId(v, vertices, vertexIds);
+        }
+
+        ss << "]";
+    }
+
+
+    ss << endl << "\t]," << endl;
+    /// ====== store faces =====
     ss << "\t\"faces\": [";
 
     bool isFirstFace = true;
@@ -239,6 +296,8 @@ string Building::toJSON(const OsmPoint &center) const {
     ss << "]," << endl;
 
     ss << "\t\"vertices\": [";
+
+    assert(vertexIds.size() == vertices.size());
 
     bool isFirstVertex = true;
     BOOST_FOREACH(Vector3 v, vertices)

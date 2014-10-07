@@ -110,7 +110,7 @@ map<uint64_t, OsmWay> getWays(QJsonArray elements, const map<uint64_t, OsmPoint>
 
     }
 
-    cout << "[INFO] parsed " << ways.size() << " ways" << endl;
+    //cout << "[INFO] parsed " << ways.size() << " ways" << endl;
     return ways;
 }
 
@@ -187,9 +187,9 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
         assert(relations.count(rel.id) == 0);
         relations.insert(make_pair(rel.id, rel) );
     }
-    cout << "[INFO] parsed " << relations.size() << " relations" << endl;
+    //cout << "[INFO] parsed " << relations.size() << " relations" << endl;
 
-    cout << "[DBG] removing " << waysInRelations.size() << " ways that are part of relations" << endl;
+    //cout << "[DBG] removing " << waysInRelations.size() << " ways that are part of relations" << endl;
     for (set<uint64_t>::const_iterator it = waysInRelations.begin(); it != waysInRelations.end(); it++)
         ways.erase(*it);
     return relations;
@@ -226,7 +226,7 @@ void promoteTags(OsmRelation &relation)
 
 void GeometryConverter::onDownloadFinished()
 {
-    cout << "Download Complete" << endl;
+//    cout << "Download Complete" << endl;
 
 
     if (reply->error() > 0) {
@@ -241,7 +241,7 @@ void GeometryConverter::onDownloadFinished()
         //QJsonObject obj = doc.object();
         QJsonArray elements = doc.object()["elements"].toArray();
         map<uint64_t, OsmPoint > nodes = getPoints(elements);
-        cout << "parsed " << nodes.size() << " nodes" << endl;
+        //cout << "[INFO] parsed " << nodes.size() << " nodes" << endl;
 
         OsmPoint center;
         //FIXME: replace by center point of the REST query
@@ -325,17 +325,17 @@ int main(int argc, char *argv[])
     QNetworkAccessManager *manager = new QNetworkAccessManager();
 
     QNetworkRequest request;
-    int tileX = argc < 2 ? 8721 : atoi(argv[1]);
+    int tileX = argc < 2 ? 8722 : atoi(argv[1]);
     int tileY = argc < 3 ? 5401 : atoi(argv[2]);
 
 
     QString sAABB =getAABBString(tileX, tileY, 14);
     QString buildingsAtFlatViewDefaultLocation = QString("")+
             ///"http://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
-            "http://tile.rbuch703.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
+            "http://render.rbuch703.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
             sAABB+";way[\"building:part\"]"+sAABB+";relation[\"building\"]"+sAABB+");out body;>;out skel qt;";
 
-    cout <<"Query: " << buildingsAtFlatViewDefaultLocation.toStdString()  << endl;
+    //cout <<"Query: " << buildingsAtFlatViewDefaultLocation.toStdString()  << endl;
     QString buildingRelationsInMagdeburg = "http://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3Brelation%5B%22building%22%5D%2852%2E059034798886984%2C11%2E523628234863281%2C52%2E19519199255819%2C11%2E765155792236326%29%3Bout%20body%3B%3E%3Bout%20skel%20qt%3B";
     QString someBuildingsInMagdeburg = "http://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3B(way%5B%22building%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208)%3Bway%5B%22building%3Apart%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208)%3Brelation%5B%22building%22%5D(52.12674216000133%2C11.630952718968814%2C52.144708569956215%2C11.66022383857208))%3Bout%20body%3B%3E%3Bout%20skel%20qt%3B";
     QString locationWithManySmallBuildings = "http://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3B(way%5B%22building%22%5D(52.12303781069966%2C11.616555837901302%2C52.14100422065452%2C11.645824523655705)%3Bway%5B%22building%3Apart%22%5D(52.12303781069966%2C11.616555837901302%2C52.14100422065452%2C11.645824523655705)%3Brelation%5B%22building%22%5D(52.12303781069966%2C11.616555837901302%2C52.14100422065452%2C11.645824523655705))%3Bout%20body%3B%3E%3Bout%20skel%20qt%3B";
