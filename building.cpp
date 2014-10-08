@@ -224,23 +224,33 @@ string Building::toJSON(const OsmPoint &center) const {
 
     list<Vector3> vertices;
     map<Vector3, int> vertexIds;
+    /*if (this->attributes.getRoofColor()!= "" || this->attributes.getWallColor() != "")
+    {
+
+    }*/
 
     ss << "{" << endl;
-    ss << "\t\"id\": \"" << this->name << "\"," << endl;
+    ss << "\t\"id\":\"" << this->name << "\"," << endl;
     float minHeight = this->attributes.isFreeStandingRoof() ?
                         this->attributes.getHeightWithoutRoof() :
                         this->attributes.getMinHeight();
 
-    ss << "\t\"minHeightInMeters\": " << minHeight << "," << endl;
-
+    ss << "\t\"minHeightInMeters\":" << minHeight << "," << endl;
+    ss << "\t\"heightWithoutRoofInMeters\":" << this->attributes.getHeightWithoutRoof() << ", " << endl;
+    ss << "\t\"numLevels\":" << this->attributes.getNumLevels() << "," << endl;
+    Vector3 wc = this->attributes.getWallColor();
+    ss << std::setprecision(3);
+    ss << "\t\"wallColor\":[" << wc.x << "," << wc.y << "," << wc.z << "]," << endl;
+    Vector3 rc = this->attributes.getRoofColor();
+    ss << "\t\"roofColor\":[" << rc.x << "," << rc.y << "," << rc.z << "]," << endl;
 
     /// ====== store drawable edges =====
-    ss << "\t\"edges\": [";
+    ss << "\t\"edges\":[";
 
     bool isFirstEdge = true;
     BOOST_FOREACH(const LineStrip &edge, this->getEdges())
     {
-        ss << (!isFirstEdge? ",":"") << endl << "\t\t[";
+        ss << (!isFirstEdge? ",":"") << "[";
         isFirstEdge = false;
         bool isFirstVertex = true;
         BOOST_FOREACH(Vector3 v, edge)
@@ -253,7 +263,7 @@ string Building::toJSON(const OsmPoint &center) const {
 
         ss << "]";
     }
-    ss << endl << "\t]," << endl;
+    ss << "]," << endl;
 
     /// ====== store building outlines (outer polygon and all holes) =====
     ss << "\t\"outlines\": [";
@@ -261,7 +271,7 @@ string Building::toJSON(const OsmPoint &center) const {
     bool isFirstOutline = true;
     BOOST_FOREACH(const LineStrip &edge, this->getOutlines())
     {
-        ss << (!isFirstOutline ? ",":"") << endl << "\t\t[";
+        ss << (!isFirstOutline ? ",":"") << "[";
         isFirstOutline = false;
         bool isFirstVertex = true;
         BOOST_FOREACH(Vector3 v, edge)
@@ -276,9 +286,9 @@ string Building::toJSON(const OsmPoint &center) const {
     }
 
 
-    ss << endl << "\t]," << endl;
+    ss << "]," << endl;
     /// ====== store faces =====
-    ss << "\t\"faces\": [";
+    ss << "\t\"faces\":[";
 
     bool isFirstFace = true;
     BOOST_FOREACH(Triangle3 tri, this->getFaces())

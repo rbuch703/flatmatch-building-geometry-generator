@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       = core network
+QT       = core network gui #gui is required for QColor
 TARGET = GeometryConversion
 
 CONFIG   += console
