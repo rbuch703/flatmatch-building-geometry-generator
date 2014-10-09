@@ -35,7 +35,8 @@ static Vector3 getColorFromString(string col, Vector3 defaultColor)
     if (c.isValid())
         return Vector3( c.redF(), c.greenF(), c.blueF());
 
-
+    if (col != "")
+        cout << "[WARN] Invalid color '" << col << "' detected. Replacing it by default color" << endl;
     return defaultColor;
 
     /*return Vector3(
@@ -46,10 +47,11 @@ static Vector3 getColorFromString(string col, Vector3 defaultColor)
 
 }
 
-static Vector3 toneDownColor(Vector3 col, float fac = 0.5)
+static Vector3 toneDownColor(Vector3 col, float fac = 0.5, bool brighten = false)
 {
     float l = 0.2126*col.x + 0.7152*col.y + 0.0722*col.z;   //luminance
-
+    if (brighten)
+        l += 0.25;
     return Vector3( (1-fac)*col.x + fac*l,
                     (1-fac)*col.y + fac*l,
                     (1-fac)*col.z + fac*l);
@@ -98,11 +100,12 @@ public:
         if (tags.count("roof:colour"))
             roofColorStr = tags.at("roof:colour");
 
+        /*
         if (wallColorStr != "")
             cout << "wallColor is '" << wallColorStr << "'" << endl;
 
         if (roofColorStr != "")
-            cout << "roofColor is '" << roofColorStr << "'" << endl;
+            cout << "roofColor is '" << roofColorStr << "'" << endl;*/
 
         if (tags.count("roof:shape"))
         {
@@ -114,14 +117,19 @@ public:
             if (s == "mansard") roofShape = MANSARD;
             if (s == "half-hipped") roofShape= HALF_HIPPED;
         }
-        //here start the heuristics
 
+        //here start the heuristics
         wallColor = getColorFromString(wallColorStr, Vector3(0.9, 0.9, 0.9));
         //heuristic: slanted roofs are red, flat ones are dark gray
         roofColor = getColorFromString(roofColorStr, getRoofHeight() ? Vector3(1, 0.3, 0.3) : Vector3(0.4, 0.4, 0.4));
 
-        wallColor = toneDownColor(wallColor);
-        roofColor = toneDownColor(roofColor);
+        /** tone down the colors and optionally brighten them.
+         *
+         * heuristic: colors given as rgb triples (#123456) are likely meant to be interpreted  literally
+         *             Those given as color names are likely too dark to be realistic.
+          **/
+        wallColor = toneDownColor(wallColor, 0.5, wallColorStr.length() && wallColorStr[0] != '#');
+        roofColor = toneDownColor(roofColor, 0.5, roofColorStr.length() && roofColorStr[0] != '#');
 
         if (!tags.count("roof:shape") && (numRoofLevels  > 0 || roofHeight > 0))
             roofShape = HIPPED;

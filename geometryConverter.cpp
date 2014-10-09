@@ -275,7 +275,7 @@ void GeometryConverter::onDownloadFinished()
                 BuildingAttributes ( way->second.tags),
                 string("w")+QString::number(way->second.id).toStdString() ));
         }
-        cout << "[DBG] unified geometry to " << buildings.size() << " buildings." << endl;
+        //cout << "[DBG] unified geometry to " << buildings.size() << " buildings." << endl;
 
         cerr << "[" << endl;
         bool isFirstBuilding = true;
@@ -284,8 +284,8 @@ void GeometryConverter::onDownloadFinished()
             if (!isFirstBuilding)
                 cerr << ",";
 
-            isFirstBuilding = false;
             cerr << endl << it->toJSON(center);
+            isFirstBuilding = false;
 
         }
         cerr << "]" << endl;
@@ -328,7 +328,7 @@ int main(int argc, char *argv[])
     int tileX = argc < 2 ? 8722 : atoi(argv[1]);
     int tileY = argc < 3 ? 5401 : atoi(argv[2]);
 
-
+    cout << "processing tile 14/" << tileX << "/" << tileY << endl;
     QString sAABB =getAABBString(tileX, tileY, 14);
     QString buildingsAtFlatViewDefaultLocation = QString("")+
             ///"http://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
