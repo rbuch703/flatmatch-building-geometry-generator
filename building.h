@@ -21,6 +21,8 @@ public:
 private:
     list<LineStrip> getEdges() const;
     list<Triangle3> getFaces() const;
+    list<LineStrip> getOutlines() const;
+
     BuildingAttributes attributes;
     PolygonWithHoles   layout;
     string             name;
