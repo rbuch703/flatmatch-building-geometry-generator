@@ -110,7 +110,7 @@ map<uint64_t, OsmWay> getWays(QJsonArray elements, const map<uint64_t, OsmPoint>
 
     }
 
-    cout << "[INFO] parsed " << ways.size() << " ways" << endl;
+    cerr << "[INFO] parsed " << ways.size() << " ways" << endl;
     return ways;
 }
 
@@ -187,9 +187,9 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
         assert(relations.count(rel.id) == 0);
         relations.insert(make_pair(rel.id, rel) );
     }
-    cout << "[INFO] parsed " << relations.size() << " relations" << endl;
+    cerr << "[INFO] parsed " << relations.size() << " relations" << endl;
 
-    cout << "[DBG] removing " << waysInRelations.size() << " ways that are part of relations" << endl;
+    cerr << "[DBG] removing " << waysInRelations.size() << " ways that are part of relations" << endl;
     for (set<uint64_t>::const_iterator it = waysInRelations.begin(); it != waysInRelations.end(); it++)
         ways.erase(*it);
     return relations;
@@ -226,12 +226,12 @@ void promoteTags(OsmRelation &relation)
 
 void GeometryConverter::onDownloadFinished()
 {
-    cout << "Download Complete" << endl;
+    cerr << "Download Complete" << endl;
 
 
     if (reply->error() > 0) {
-        cout << "Error" << endl;
-        cout << reply->errorString().toStdString();
+        cerr << "Error" << endl;
+        cerr << reply->errorString().toStdString();
     }
     else {
         QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
@@ -240,7 +240,7 @@ void GeometryConverter::onDownloadFinished()
         //QJsonObject obj = doc.object();
         QJsonArray elements = doc.object()["elements"].toArray();
         map<uint64_t, OsmPoint > nodes = getPoints(elements);
-        cout << "parsed " << nodes.size() << " nodes" << endl;
+        cerr << "parsed " << nodes.size() << " nodes" << endl;
 
         OsmPoint center;
         //FIXME: replace by center point of the REST query
@@ -274,22 +274,22 @@ void GeometryConverter::onDownloadFinished()
                 BuildingAttributes ( way->second.tags),
                 string("w")+QString::number(way->second.id).toStdString() ));
         }
-        cout << "[DBG] unified geometry to " << buildings.size() << " buildings." << endl;
+        cerr << "[DBG] unified geometry to " << buildings.size() << " buildings." << endl;
 
-        cerr << "[" << endl;
+        cout << "[" << endl;
         bool isFirstBuilding = true;
         for (list<Building>::const_iterator it = buildings.begin(); it != buildings.end(); it++)
         {
             if (!isFirstBuilding)
-                cerr << ",";
+                cout << ",";
 
             isFirstBuilding = false;
-            cerr << endl << it->toJSON(center);
+            cout << endl << it->toJSON(center);
 
         }
-        cerr << "]" << endl;
+        cout << "]" << endl;
 
-        cout << "Emitting 'done' signal" << endl << endl;
+        cerr << "Emitting 'done' signal" << endl << endl;
         emit done();
     }
 
