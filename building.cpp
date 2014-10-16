@@ -171,6 +171,8 @@ list<Triangle3> Building::getFaces() const {
     }
     else
     {
+
+        //cerr << "triangulating roof for " << this->getName() << endl;
         list<Triangle2> tris2d = layout.triangulate();
         BOOST_FOREACH(Triangle2 tri, tris2d)
         {
@@ -179,6 +181,20 @@ list<Triangle3> Building::getFaces() const {
                                       Vector3(tri.v3, 0),
                                       Vector3(tri.v2, 0))); //flat roof -> zero height
         }
+    }
+
+    float minHeight = attributes.getMinHeight();
+    if (attributes.isFreeStandingRoof())
+        minHeight = attributes.getHeightWithoutRoof();
+
+    //cerr << "minHeight is " << minHeight << endl;
+    //cerr << "roofHeight is " << roofHeight << endl;
+    if (minHeight > 0)  //triangulate lower surface
+    {
+        //cerr << "triangulating lower side for " << this->getName() << endl;
+        list<Triangle2> tris2d = layout.triangulate();
+        BOOST_FOREACH(Triangle2 tri, tris2d)
+            faces.push_back(Triangle3( tri, minHeight));
     }
 
     /** So far, the roof height is just normalized to the interval [0..1];

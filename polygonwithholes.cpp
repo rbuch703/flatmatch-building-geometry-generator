@@ -72,7 +72,12 @@ bool isClockwise(const PointList &poly, const char* name)
         return false;
     }
     Polygon_2 pgn(points.begin(), points.end());
-    assert( pgn.is_simple() );
+    //assert( pgn.is_simple() );
+    if (!pgn.is_simple())
+    {
+        //cerr << "[ERR] for " << name << endl;
+        throw "is_simple() failed";
+    }
 
     //cout << "Orientation: " << pgn.orientation() << endl;
     return pgn.orientation() == CGAL::CLOCKWISE;

@@ -185,7 +185,8 @@ public:
                 nl -= skipLevels;
             return nl;
         }
-        return getHeightWithoutRoof() / 3.0;
+
+        return (getHeightWithoutRoof()- getMinHeight()) / 3.0;
     }
 
     float getRoofHeight() const
