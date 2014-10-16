@@ -218,6 +218,10 @@ int getVertexId( Vector3 v, list<Vector3> &vertices, map<Vector3, int> &vertexId
     return vertexIds[v];
 }
 
+bool Building::hasNonZeroHeight() const
+{
+    return this->attributes.getTotalHeight() > 0;
+}
 
 string Building::toJSON(const OsmPoint &center) const {
     stringstream ss(ios_base::out);

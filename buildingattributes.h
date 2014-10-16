@@ -36,7 +36,7 @@ static Vector3 getColorFromString(string col, Vector3 defaultColor)
         return Vector3( c.redF(), c.greenF(), c.blueF());
 
     if (col != "")
-        cout << "[WARN] Invalid color '" << col << "' detected. Replacing it by default color" << endl;
+        cerr << "[WARN] Invalid color '" << col << "' detected. Replacing it by default color" << endl;
     return defaultColor;
 
     /*return Vector3(
@@ -178,7 +178,13 @@ public:
 
     float getNumLevels() const
     {
-        if (numLevels != -1) return numLevels;
+        if (numLevels != -1)
+        {
+            float nl = numLevels;
+            if (skipLevels != -1)
+                nl -= skipLevels;
+            return nl;
+        }
         return getHeightWithoutRoof() / 3.0;
     }
 

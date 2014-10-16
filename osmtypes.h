@@ -27,14 +27,14 @@ typedef list<OsmPoint> OsmPointList;
 bool operator==(const OsmPoint &p1, const OsmPoint &p2);
 bool operator!=(const OsmPoint &p1, const OsmPoint &p2);
 
-struct OsmWay
+class OsmWay
 {
+public:
     OsmWay( uint64_t id = 0): id(id) {}
-
-    string getName() const {
-        return name.length() ? name : QString::number(id).toStdString();
-    }
-
+    string getName() const;
+    static bool mergeable(const OsmWay &w1, const OsmWay &w2);
+    static OsmWay merge(const OsmWay &w1, const OsmWay &w2);
+public:
     uint64_t id;
     string name;
     list<OsmPoint> points;
@@ -42,6 +42,8 @@ struct OsmWay
 };
 
 struct OsmRelationMember {
+    OsmRelationMember() {};
+    OsmRelationMember(OsmWay way, string roleName): way(way), role(roleName) {};
     OsmWay way;
     string role;
 };
@@ -49,6 +51,8 @@ struct OsmRelationMember {
 struct OsmRelation
 {
     OsmRelation( uint64_t id = 0): id(id) {}
+    void promoteTags();
+    void mergeWays();
 
     uint64_t id;
     map<string, string> tags;

@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
+#include <QRegExp>
 
 #include <iostream>
 #include <stdint.h>
@@ -14,11 +15,15 @@
 #include <string>
 #include <set>
 
+
 #include "geometryConverter.h"
 #include "osmtypes.h"
 #include "polygonwithholes.h"
 #include "buildingattributes.h"
 #include "building.h"
+
+bool isCgiMode = false;
+int tileX, tileY;
 
 
 QNetworkReply *reply;
@@ -127,7 +132,6 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
 
     for (QJsonArray::const_iterator el = elements.begin(); el != elements.end(); el++)
     {
-        map<string, uint64_t> roles;
 
         QJsonObject obj = (*el).toObject();
         if (obj["type"].toString() != "relation")
@@ -152,34 +156,26 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
              */
             if (type == "relation")
             {
-                cout << "[INFO] skipping sub-relation " << way_id << " of relation " << rel.id << endl;
+                cerr << "[INFO] skipping sub-relation " << way_id << " of relation " << rel.id << endl;
                 continue;
             }
             assert(type == "way");
 
-            if (roles.count(m.role) == 0)
-                roles.insert(make_pair(m.role, 0));
-            roles[m.role] += 1;
 
             if (ways.count(way_id) == 0)
             {
-                cout << "[WARN] member way " << way_id << " of relation " << rel.id
+                cerr << "[WARN] member way " << way_id << " of relation " << rel.id
                      << " is not part of JSON response, ignoring..." << endl;
                 continue;
             }
             waysInRelations.insert(way_id);
             m.way = ways[way_id];
-            if (m.way.points.front() != m.way.points.back())
+            /*if (m.way.points.front() != m.way.points.back())
             {
-                cout << "[WARN] non-closed way " << way_id << " is part of relation " << rel.id << ". This is unsupported" <<endl;
-            }
+                cerr << "[WARN] non-closed way " << way_id << " is part of building relation " << rel.id << ". This is unsupported" <<endl;
+            }*/
             rel.members.push_back(m);
         }
-
-        //assert(roles["outer"] == 1);    //exactly one 'outer' way
-        //cout << "relation " << rel.id << " has " << rel.members.size() << " way members" << endl;
-        if (roles["outer"] != 1)
-            cout << "[WARN] relation " <<rel.id << " has more than one 'outer' member. This is currently unsupported" << endl;
 
         //for (map<string, uint64_t>::const_iterator role =roles.begin(); role != roles.end(); role++)
         //    cout << "\t" << (*role).first << "(" << (*role).second << ")" << endl;
@@ -196,33 +192,7 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
 }
 
 
-/* In some (technically invalid) cases, an OSM multipolygon has few tags or even no tags at all,
- * and the tags describing it instead are part of its only 'outer' member. This method copies
- * relevant tags from those 'outer' members to the relation itself. This is usually caused when a
- * user of the OSM web editor promotes a way to a relation, but is not aware that he has to move
- * the tags manually.
- *
- * */
-void promoteTags(OsmRelation &relation)
-{
-    for (list<OsmRelationMember>::const_iterator it = relation.members.begin(); it != relation.members.end(); it++)
-    {
-        if (it->role != "outer")
-            continue;
 
-        const OsmWay &way = it->way;
-        for (map<string, string>::const_iterator tag = way.tags.begin(); tag != way.tags.end(); tag++)
-        {
-            if (relation.tags.count(tag->first) == 0)
-            {
-                assert(false && "untested code");
-                relation.tags.insert(*tag);
-                cout << "[DBG] adding " << (tag->first) << "=" << tag->second << " to relation" << relation.id << endl;
-            }
-        }
-
-    }
-}
 
 void GeometryConverter::onDownloadFinished()
 {
@@ -242,37 +212,29 @@ void GeometryConverter::onDownloadFinished()
         map<uint64_t, OsmPoint > nodes = getPoints(elements);
         cerr << "parsed " << nodes.size() << " nodes" << endl;
 
-        OsmPoint center;
-        //FIXME: replace by center point of the REST query
-        center.lat = 52.1; //close enough to Magdeburg for now;
-        center.lng = 11.6;
+        //query center point. Needed to convert lat/lng coordinates to local euclidean coordinates
+        OsmPoint center(tiley2lat(tileY+0.5, 14), tilex2lng(tileX+0.5, 14));
 
         map<uint64_t, OsmWay> ways = getWays(elements, nodes);
         map<uint64_t, OsmRelation> relations = getRelations(elements, ways);
 
-        /** Fixme: all geometry processing (simplification, roof construction, ...) requires an Euclidean
-         *        coordinate system. But OSM data is given as lat/lng pairs, which are not Euclidean (
-         *        the mapping from lng to meters changes with cos(lat) ). Thus, we need to convert all lat/lng
-         *        data to local Euclidean coordinates, and convert them back before the JSON export.
-         *
-         */
-
         list<Building> buildings;
         for (map<uint64_t, OsmRelation>::iterator rel = relations.begin(); rel != relations.end(); rel++)
         {
-            promoteTags(rel->second);
+            rel->second.promoteTags();
+            string name = string("r")+QString::number(rel->second.id).toStdString();
             buildings.push_back( Building(
-                PolygonWithHoles::fromOsmRelation(rel->second, center),
-                BuildingAttributes( rel->second.tags ),
-                string("r")+QString::number(rel->second.id).toStdString() ));
+                PolygonWithHoles::fromOsmRelation(rel->second, center, name.c_str()),
+                BuildingAttributes( rel->second.tags ), name));
         }
 
         for (map<uint64_t, OsmWay>::const_iterator way = ways.begin(); way != ways.end(); way++)
         {
+            //cerr << "[DBG] parsing way " << way->second.id << endl;
+            string name = string("w")+QString::number(way->second.id).toStdString();
             buildings.push_back( Building(
-                PolygonWithHoles(way->second.points, list<OsmPointList>(), center),
-                BuildingAttributes ( way->second.tags),
-                string("w")+QString::number(way->second.id).toStdString() ));
+                PolygonWithHoles(way->second.points, list<OsmPointList>(), center, name.c_str()),
+                BuildingAttributes ( way->second.tags), name));
         }
         cerr << "[DBG] unified geometry to " << buildings.size() << " buildings." << endl;
 
@@ -280,6 +242,12 @@ void GeometryConverter::onDownloadFinished()
         bool isFirstBuilding = true;
         for (list<Building>::const_iterator it = buildings.begin(); it != buildings.end(); it++)
         {
+//            if (it->getName() != "r2353571")
+//                continue;
+
+            if (!it->hasNonZeroHeight())
+                continue;
+
             if (!isFirstBuilding)
                 cout << ",";
 
@@ -295,16 +263,7 @@ void GeometryConverter::onDownloadFinished()
 
 }
 
-double tilex2lng(int x, int z)
-{
-    return x / pow(2.0, z) * 360.0 - 180;
-}
 
-double tiley2lat(int y, int z)
-{
-    double n = M_PI - 2.0 * M_PI * y / pow(2.0, z);
-    return 180.0 / M_PI * atan(0.5 * (exp(n) - exp(-n)));
-}
 
 QString getAABBString(int tileX, int tileY, int zoom)
 {
@@ -319,21 +278,57 @@ QString getAABBString(int tileX, int tileY, int zoom)
                    QString::number(latMax, 'g', 8) + "," +  QString::number(lngMax, 'g', 8) + ")";
 }
 
+QString getEnvironmentString(const char* name)
+{
+    char* s = secure_getenv(name);
+    return QString(s ? s : "");
+}
+
+
 int main(int argc, char *argv[])
 {
+    isCgiMode =  (getEnvironmentString("REQUEST_METHOD") != "");
+
+    string tileXStr;
+    string tileYStr;
+
+    if (isCgiMode)
+    {
+        cout << "Content-Type: application/json; charset=utf-8\r\n";
+        //cout << "Etag: DEADBEEF\r\n";
+        cout << "\r\n";
+        QString path = getEnvironmentString("PATH_INFO");
+        QRegExp reTile("/(\\d+)/(\\d+)/?(.json)?");
+        if (!reTile.exactMatch(path))
+        {
+            cout << "[\"Error: invalid request '" << path.toStdString() << "'\"]" << endl;
+            exit(0);
+        }
+        tileXStr = reTile.cap(1).toStdString();
+        tileYStr = reTile.cap(2).toStdString();
+    }
+    else
+    {
+        tileXStr = argc < 2 ? "8722" : argv[1];
+        tileYStr = argc < 3 ? "5401" : argv[2];
+    }
+
+    tileX = atoi(tileXStr.c_str());
+    tileY = atoi(tileYStr.c_str());
+
+    //QDir::current().mkpath( QString("cache/") + tileXStr.c_str() );
+
     QCoreApplication app(argc, argv);   //initialize infrastructure for Qt event loop.
     QNetworkAccessManager *manager = new QNetworkAccessManager();
 
     QNetworkRequest request;
-    int tileX = argc < 2 ? 8722 : atoi(argv[1]);
-    int tileY = argc < 3 ? 5401 : atoi(argv[2]);
 
-    cout << "processing tile 14/" << tileX << "/" << tileY << endl;
+    cerr << "processing tile 14/" << tileX << "/" << tileY << endl;
     QString sAABB =getAABBString(tileX, tileY, 14);
     QString buildingsAtFlatViewDefaultLocation = QString("")+
-            ///"http://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
-            "http://render.rbuch703.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
-            sAABB+";way[\"building:part\"]"+sAABB+";relation[\"building\"]"+sAABB+");out body;>;out skel qt;";
+            "http://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
+            ///"http://render.rbuch703.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
+            sAABB+";way[\"building:part\"]"+sAABB+";relation[\"building\"][\"type\"=\"multipolygon\"]"+sAABB+");out body;>;out skel qt;";
 
     //cout <<"Query: " << buildingsAtFlatViewDefaultLocation.toStdString()  << endl;
     QString buildingRelationsInMagdeburg = "http://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A25%5D%3Brelation%5B%22building%22%5D%2852%2E059034798886984%2C11%2E523628234863281%2C52%2E19519199255819%2C11%2E765155792236326%29%3Bout%20body%3B%3E%3Bout%20skel%20qt%3B";

@@ -7,7 +7,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/Triangulation_face_base_with_info_2.h>
-#include <CGAL/Triangulation_vertex_base_with_info_2.h>
+#include <CGAL/Triangulation_vertex_base_2.h>
 #include <CGAL/Polygon_2.h>
 #include<CGAL/Polygon_with_holes_2.h>
 #include<CGAL/create_straight_skeleton_from_polygon_with_holes_2.h>
@@ -23,18 +23,12 @@ struct FaceInfo2
     }
 };
 
-struct VertexInfo
-{
-    VertexInfo(): height(0.0) {}
-    double height;
-};
-
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef K::Point_2 Point;
 typedef CGAL::Polygon_2<K> Polygon_2;
 typedef CGAL::Polygon_with_holes_2<K> Polygon_with_holes ;
 //typedef CGAL::Vector_2<K> Vector2;
-typedef CGAL::Triangulation_vertex_base_with_info_2<VertexInfo,K> Vb;
+typedef CGAL::Triangulation_vertex_base_2<K> Vb;
 typedef CGAL::Triangulation_face_base_with_info_2<FaceInfo2,K> Fbb;
 typedef CGAL::Constrained_triangulation_face_base_2<K,Fbb> Fb;
 typedef CGAL::Triangulation_data_structure_2<Vb,Fb> TDS;
@@ -51,7 +45,7 @@ using namespace std;
 
 PolygonWithHoles::PolygonWithHoles( ) {}
 
-bool isClockwise(const PointList &poly)
+bool isClockwise(const PointList &poly, const char* name)
 {
     list<Point> points;
     BOOST_FOREACH (const Vector2 p, poly)
@@ -61,10 +55,22 @@ bool isClockwise(const PointList &poly)
     }
     //cout << endl;
 
-    assert (points.front() == points.back());
-    assert(poly.size() > 0);
-    points.pop_back(); //remove duplicate closing point
+    if (poly.size() == 0)
+    {
+        cerr << "[WARN] orientation test for polygon without nodes, returning bogus result" << endl;
+        return false;
+    }
 
+    if (points.front() == points.back())
+        points.pop_back(); //remove duplicate closing point
+    else
+        cerr << "[WARN] non-closed building polygon in " << (name ? name : "(unknown)") <<", forcing closing" << endl;
+
+    if (poly.size() < 3)
+    {
+        cerr << "[WARN] straight line tagged as 'building', returning bogus orientation test result" << endl;
+        return false;
+    }
     Polygon_2 pgn(points.begin(), points.end());
     assert( pgn.is_simple() );
 
@@ -113,7 +119,7 @@ void simplifyPolygon( PointList &poly)
 
 }
 
-PolygonWithHoles::PolygonWithHoles(const OsmPointList &outer, const list<OsmPointList> &holes, const OsmPoint center)
+PolygonWithHoles::PolygonWithHoles(const OsmPointList &outer, const list<OsmPointList> &holes, const OsmPoint center, const char* name)
 {
 
     static const double EARTH_CIRCUMFERENCE = 2 * 3.141592 * (6378.1 * 1000); // [m]
@@ -138,7 +144,7 @@ PolygonWithHoles::PolygonWithHoles(const OsmPointList &outer, const list<OsmPoin
         }
         this->holes.push_back(convertedHole);
     }
-    //FIXME: should not be done here, but rather in 'Building' before constructing the PolygonWIthHoles
+    //FIXME: should not be done here, but rather in 'Building' before constructing the PolygonWithHoles
 
 
     simplifyPolygon(this->outer);
@@ -148,12 +154,12 @@ PolygonWithHoles::PolygonWithHoles(const OsmPointList &outer, const list<OsmPoin
      *  make sure the polygon conforms to these requirements on creation.
      */
 
-    if (isClockwise(this->outer))
+    if (isClockwise(this->outer, name))
         this->outer.reverse();
 
     BOOST_FOREACH (PointList &poly, this->holes)
     {
-        if (!isClockwise(poly))
+        if (!isClockwise(poly, name))
             poly.reverse();
     }
 
@@ -166,8 +172,21 @@ PolygonWithHoles::PolygonWithHoles(const OsmPointList &outer, const list<OsmPoin
 }
 
 
-PolygonWithHoles PolygonWithHoles::fromOsmRelation(const OsmRelation &rel, OsmPoint center)
+PolygonWithHoles PolygonWithHoles::fromOsmRelation(OsmRelation rel, OsmPoint center, const char* name)
 {
+    rel.mergeWays();
+
+
+    map<string, uint64_t> roles;
+    BOOST_FOREACH(const OsmRelationMember &member, rel.members)
+        roles[member.role] += 1;
+
+    //assert(roles["outer"] == 1);    //exactly one 'outer' way
+    //cout << "relation " << rel.id << " has " << rel.members.size() << " way members" << endl;
+    if (roles["outer"] != 1)
+        cerr << "[WARN] relation " <<rel.id << " has more than one 'outer' member. This is currently unsupported" << endl;
+
+
     const OsmPointList *outer = NULL;
     for (list<OsmRelationMember>::const_iterator member = rel.members.begin(); member != rel.members.end(); member++)
     {
@@ -177,7 +196,8 @@ PolygonWithHoles PolygonWithHoles::fromOsmRelation(const OsmRelation &rel, OsmPo
             break;
         }
     }
-    assert(outer);
+#warning temporarily disabled important assertions
+    //assert(outer);
 
     list<OsmPointList> holes;
     for (list<OsmRelationMember>::const_iterator member = rel.members.begin(); member != rel.members.end(); member++)
@@ -185,12 +205,13 @@ PolygonWithHoles PolygonWithHoles::fromOsmRelation(const OsmRelation &rel, OsmPo
         if (&member->way.points == outer)
             continue;
 
-        assert((member->role == "inner" && member->role == "") || "unknown member role");
+#warning temporarily disabled important assertions
+//        assert((member->role == "inner" && member->role == "") || "unknown member role");
         holes.push_back( member->way.points);
 
     }
 
-    return PolygonWithHoles(*outer, holes, center);
+    return PolygonWithHoles(outer ? *outer : OsmPointList(), holes, center, name);
 }
 
 void mark_domains(CDT& ct, CDT::Face_handle start, int index,
