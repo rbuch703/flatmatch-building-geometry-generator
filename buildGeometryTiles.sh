@@ -5,7 +5,7 @@ do
     mkdir -p geoTiles/$x
     for y in `seq 5395 5407`
     do
-        ./GeometryConversion $x $y 2> geoTiles/$x/$y.json
+        ./GeometryConversion $x $y > geoTiles/$x/$y.json
     done
 done
 
