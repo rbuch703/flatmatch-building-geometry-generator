@@ -68,15 +68,15 @@ bool isClockwise(const PointList &poly, const char* name)
 
     if (poly.size() < 3)
     {
-        cerr << "[WARN] straight line tagged as 'building', returning bogus orientation test result" << endl;
+        cerr << "[WARN] straight line " << name << " tagged as 'building', returning bogus orientation test result" << endl;
         return false;
     }
     Polygon_2 pgn(points.begin(), points.end());
     //assert( pgn.is_simple() );
     if (!pgn.is_simple())
     {
-        //cerr << "[ERR] for " << name << endl;
-        throw "is_simple() failed";
+        cerr << "[ERR] polygon " << name << " is not a simple polygon; returning bogus orientation" << endl;
+        return false;
     }
 
     //cout << "Orientation: " << pgn.orientation() << endl;

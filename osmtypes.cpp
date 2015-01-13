@@ -59,6 +59,12 @@ OsmWay OsmWay::merge(const OsmWay &w1, const OsmWay &w2)
     return res;
 }
 
+bool operator< (const OsmRelationMember &m1, const OsmRelationMember &m2)
+{
+    return (m1.way.id  < m2.way.id) ||
+           (m1.way.id == m2.way.id && m1.role < m2.role);
+}
+
 
 
 /* In some (technically invalid) cases, an OSM multipolygon has few tags or even no tags at all,

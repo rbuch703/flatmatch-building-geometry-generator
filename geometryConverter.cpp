@@ -115,7 +115,8 @@ map<uint64_t, OsmWay> getWays(QJsonArray elements, const map<uint64_t, OsmPoint>
 
     }
 
-    cerr << "[INFO] parsed " << ways.size() << " ways" << endl;
+    cerr << ", " << ways.size() << " ways";
+    cerr.flush();
     return ways;
 }
 
@@ -127,9 +128,9 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
     // set of way_ids of all ways that are part of relations, and thus will not be treated as dedicated geometry
     // We flag all ways belonging to relations using this set, and remove all those ways from the map of ways at
     // the end of this method. A direct removal is not possible, since a way may be part of several relations (
-    // so if it was remove right after a single relation was foudn that contains it, it would be missing when
+    // so if it was remove right after a single relation was found that contains it, it would be missing when
     // parsing other relations that may contain it as well.
-    set<uint64_t> waysInRelations;
+    set<OsmRelationMember> multipolygonWays;
 
     for (QJsonArray::const_iterator el = elements.begin(); el != elements.end(); el++)
     {
@@ -156,8 +157,8 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
             if (isMultipolygonRelation)
             {
                 // We don't need individual nodes of relations, so skip them silently.
-                /* Cascaded relations may hold relevant information. But their semantics are not standardized,
-                 * and their processing would relatively complex. So ignore them for now.
+                /* Cascaded relations could hold relevant information. But their semantics are not standardized,
+                 * and their processing would be relatively complex. So we ignore them for now.
                  */
                 if ( type != "way")
                 {
@@ -173,8 +174,8 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
                          << " is not part of JSON response, ignoring..." << endl;
                     continue;
                 }
-                waysInRelations.insert(ref);
                 m.way = ways[ref];
+                multipolygonWays.insert(m);
                 rel.members.push_back(m);
             }
 
@@ -196,11 +197,24 @@ map<uint64_t, OsmRelation> getRelations(QJsonArray elements, map<uint64_t, OsmWa
             relations.insert(make_pair(rel.id, rel) );
         }
     }
-    cerr << "[INFO] parsed " << relations.size() << " relations" << endl;
+    cerr << ", " << relations.size() << " relations" << endl;
 
-    cerr << "[DBG] removing " << waysInRelations.size() << " ways that are part of relations" << endl;
-    for (set<uint64_t>::const_iterator it = waysInRelations.begin(); it != waysInRelations.end(); it++)
-        ways.erase(*it);
+    cerr << "[DBG] removing " << multipolygonWays.size() << " ways that are outlines of multipolygons" << endl;
+    for (set<OsmRelationMember>::const_iterator it = multipolygonWays.begin(); it != multipolygonWays.end(); it++)
+    {
+        /** remove all those ways from the list of ways representing buildings that cannot be buildings:
+          * - multipolygon outer ways cannot be buildings themselves, because they represent the same
+          *   building outline as the multipolygon itself (multipolygon inner ways on the other hand may
+          *   be buildings, e.g. the 'inner' hole of one building may be another building
+          * - ways that are not tagged as "building" or "building:part" are not buildings, but instead
+          *   are part of the server response just because they are multipolygon parts.
+          */
+        if ((it->role == "outer") || (!it->way.tags.count("building") && !it->way.tags.count("building:part")))
+        {
+//            cerr << "removing way " << it->way.id << " from list of independent ways" << endl;
+            ways.erase(it->way.id);
+        }
+    }
     return relations;
 }
 
@@ -229,7 +243,7 @@ set<uint64_t> getOutlineRelations(map<uint64_t, OsmRelation> &relations)
 
 void GeometryConverter::onDownloadFinished()
 {
-    cerr << "Download Complete" << endl;
+    cerr << "... download complete." << endl;
 
 
     if (reply->error() > 0) {
@@ -243,7 +257,8 @@ void GeometryConverter::onDownloadFinished()
         //QJsonObject obj = doc.object();
         QJsonArray elements = doc.object()["elements"].toArray();
         map<uint64_t, OsmPoint > nodes = getPoints(elements);
-        cerr << "parsed " << nodes.size() << " nodes" << endl;
+        cerr << "[INFO] parsed " << nodes.size() << " nodes";
+        cerr.flush();
 
         //query center point. Needed to convert lat/lng coordinates to local euclidean coordinates
         OsmPoint center(tiley2lat(tileY+0.5, 14), tilex2lng(tileX+0.5, 14));
@@ -253,9 +268,8 @@ void GeometryConverter::onDownloadFinished()
         map<uint64_t, OsmRelation> relations = getRelations(elements, ways,
                                                             wayBlacklist, relationBlacklist);
 
-        cerr << "Blacklisted " << wayBlacklist.size() << " ways and "
-             << relationBlacklist.size() << " relations" << endl;
-        //removeBlacklistedOutlines(relations, ways);
+        //cerr << "Blacklisted " << wayBlacklist.size() << " ways and "
+        //     << relationBlacklist.size() << " relations" << endl;
 
         list<Building> buildings;
         for (map<uint64_t, OsmRelation>::iterator rel = relations.begin(); rel != relations.end(); rel++)
@@ -370,7 +384,8 @@ int main(int argc, char *argv[])
 
     QNetworkRequest request;
 
-    cerr << "processing tile 14/" << tileX << "/" << tileY << endl;
+    cerr << "processing tile 14/" << tileX << "/" << tileY;
+    cerr.flush();
     QString sAABB =getAABBString(tileX, tileY, 14);
     QString buildingsAtFlatViewDefaultLocation = QString("")+
             "http://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(way[\"building\"]"+
@@ -378,6 +393,7 @@ int main(int argc, char *argv[])
             sAABB+
             ";way[\"building:part\"]"+sAABB+
             ";relation[\"building\"][\"type\"=\"multipolygon\"]"+sAABB+
+            ";relation[\"building:part\"][\"type\"=\"multipolygon\"]"+sAABB+
             ";relation[\"type\"=\"building\"]"+sAABB+
             ");out body;>;out skel qt;";
 

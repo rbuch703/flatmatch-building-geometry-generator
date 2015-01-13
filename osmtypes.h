@@ -42,11 +42,13 @@ public:
 };
 
 struct OsmRelationMember {
-    OsmRelationMember() {};
-    OsmRelationMember(OsmWay way, string roleName): way(way), role(roleName) {};
+    OsmRelationMember() {}
+    OsmRelationMember(OsmWay way, string roleName): way(way), role(roleName) {}
     OsmWay way;
     string role;
 };
+
+bool operator< (const OsmRelationMember &m1, const OsmRelationMember &m2);
 
 struct OsmRelation
 {
