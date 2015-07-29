@@ -29,6 +29,9 @@ static float getLengthInMeters(string s)
 
 static Vector3 getColorFromString(string col, Vector3 defaultColor)
 {
+    QRegExp reHexColor("[a-fA-F0-9]{6}");
+    if (reHexColor.exactMatch(col.c_str()))
+        col = "#" + col;
 
     QColor c(col.c_str());
 

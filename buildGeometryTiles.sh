@@ -14,9 +14,8 @@ do
     for y in $Y_MD
     do
         ./GeometryConversion $x $y > geoTiles/$x/$y.json
+        echo "Sleeping for 10 seconds to reduce Overpass server load."
+        sleep 10
     done
 done
-
-    #x:  -> 9 tiles
-    ##//y:  -> 13 tiles
 
