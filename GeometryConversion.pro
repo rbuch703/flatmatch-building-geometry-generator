@@ -31,7 +31,7 @@ HEADERS += \
     building.h \
     geometry.h
 
-QMAKE_CXXFLAGS += -frounding-math #required by CGAL
+QMAKE_CXXFLAGS += --std=c++11 -frounding-math #required by CGAL
 
 LIBS += -lgmp -lCGAL -lboost_thread -lmpfr -lCGAL_Core
 

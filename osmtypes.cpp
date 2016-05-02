@@ -1,6 +1,5 @@
 
 #include "osmtypes.h"
-#include <boost/foreach.hpp>
 #include <assert.h>
 
 bool operator==(const OsmPoint &p1, const OsmPoint &p2) { return p1.lat == p2.lat && p1.lng == p2.lng;}
@@ -75,18 +74,18 @@ bool operator< (const OsmRelationMember &m1, const OsmRelationMember &m2)
  * */
 void OsmRelation::promoteTags()
 {
-    for (list<OsmRelationMember>::const_iterator it = members.begin(); it != members.end(); it++)
+    for ( OsmRelationMember const& member : members)
     {
-        if (it->role != "outer")
+        if (member.role != "outer")
             continue;
 
-        const OsmWay &way = it->way;
-        for (map<string, string>::const_iterator tag = way.tags.begin(); tag != way.tags.end(); tag++)
+        const OsmWay &way = member.way;
+        for ( std::pair<string, string> const& tag : way.tags)
         {
-            if (tags.count(tag->first) == 0)
+            if (tags.count(tag.first) == 0)
             {
                 //assert(false && "untested code");
-                tags.insert(*tag);
+                tags.insert(tag);
                 //cerr << "[DBG] adding " << (tag->first) << "=" << tag->second << " to relation " << relation.id << endl;
             }
         }
@@ -94,15 +93,13 @@ void OsmRelation::promoteTags()
     }
 }
 
-/** mergeWays() needs this typedef, because the comma in 'pair<string, list<OsmWay> >' prevents the
- *  original type to be used in the BOOST_FOREACH macro*/
 typedef pair<string, list<OsmWay> > Role;
 
 void OsmRelation::mergeWays()
 {
     list<OsmRelationMember> res;
     map< string, list<OsmWay> > ways;
-    BOOST_FOREACH( OsmRelationMember mbr, members)
+    for (OsmRelationMember mbr: members)
     {
         if (mbr.way.points.front() == mbr.way.points.back())
         {
@@ -113,10 +110,10 @@ void OsmRelation::mergeWays()
         ways[mbr.role].push_back( mbr.way);
     }
 
-    BOOST_FOREACH(Role role, ways)
+    for (Role role : ways)
     {
         string roleName = role.first;
-        list<OsmWay> ways = role.second;
+        list<OsmWay> &ways = role.second;
         for ( list<OsmWay>::iterator it1 = ways.begin(); it1 != ways.end(); it1++)
         {
             list<OsmWay>::iterator it2 = it1;
@@ -131,8 +128,9 @@ void OsmRelation::mergeWays()
                     it2++;
             }
         }
-        BOOST_FOREACH( OsmWay way, ways)
+        for (OsmWay const& way : ways) {
             res.push_back(OsmRelationMember(way, roleName));
+        }
     }
 
     members = res;

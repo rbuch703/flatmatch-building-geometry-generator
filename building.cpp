@@ -1,8 +1,6 @@
 #include "building.h"
 
 #include <sstream>
-#include <boost/foreach.hpp>
-//#include <list>
 #include <map>
 #include <vector>
 #include <assert.h>
@@ -29,7 +27,7 @@ void addOutlineEdges(const PointList &poly, list<LineStrip> &edgesOut, double mi
 
     list<LineStrip> verticalEdges;
 
-    BOOST_FOREACH(const Vector2 &pt, poly)
+    for(Vector2 const& pt : poly)
     {
 
         //cout << "##," << it->lat << "," << it->lng << endl;
@@ -90,7 +88,7 @@ list<LineStrip> Building::getEdges() const {
 
     //addOutlineEdges( this->layout.getOuterPolygon(), edges, minHeight, wallHeight, false, !this->attributes.isFreeStandingRoof() );
 
-    //BOOST_FOREACH( const PointList &edge, this->layout.getHoles())
+    //for( const PointList &edge: this->layout.getHoles())
     //    addOutlineEdges( edge, edges, minHeight, wallHeight, true, !this->attributes.isFreeStandingRoof());
 
     //cout << "Wall height is " << wallHeight << endl;
@@ -102,9 +100,9 @@ list<LineStrip> Building::getEdges() const {
     }
 
     //no edge faces for flat roofs: their edges have already been added by addOutlineEdges();
-    BOOST_FOREACH( LineStrip &face, faces)
+    for (LineStrip &face : faces)
     {
-        BOOST_FOREACH( Vector3 &point, face)
+        for (Vector3 & point : face)
         {
                 point.z = point.z * roofHeight + wallHeight;
                 //cout << point.x << ", " << point.y << endl;
@@ -126,15 +124,15 @@ list<LineStrip> Building::getOutlines() const {
 
     LineStrip outline;
     PointList lst = this->layout.getOuterPolygon();
-    BOOST_FOREACH( Vector2 v, lst)
+    for (Vector2 v : lst)
         outline.push_back(Vector3(v, height));
 
     outlines.push_back(outline);
 
-    BOOST_FOREACH( const PointList &hole, this->layout.getHoles())
+    for (PointList const& hole: this->layout.getHoles())
     {
         LineStrip outline;
-        BOOST_FOREACH( Vector2 v, hole)
+        for (Vector2 v: hole)
             outline.push_back(Vector3(v, height));
 
         outlines.push_back(outline);
@@ -157,7 +155,7 @@ list<Triangle3> Building::getFaces() const {
     {
         addOutlineFaces( this->layout.getOuterPolygon(), faces, minHeight, wallHeight);
 
-        BOOST_FOREACH( const PointList &hole, this->layout.getHoles())
+        for( const PointList &hole: this->layout.getHoles())
             addOutlineFaces( hole, faces, minHeight, wallHeight);
     }*/
 
@@ -174,7 +172,7 @@ list<Triangle3> Building::getFaces() const {
 
         //cerr << "triangulating roof for " << this->getName() << endl;
         list<Triangle2> tris2d = layout.triangulate();
-        BOOST_FOREACH(Triangle2 tri, tris2d)
+        for (Triangle2 tri : tris2d)
         {
             //swap 2nd and 3rd vertex to invert surface normal
             tris.push_back(Triangle3( Vector3(tri.v1, 0),
@@ -193,7 +191,7 @@ list<Triangle3> Building::getFaces() const {
     {
         //cerr << "triangulating lower side for " << this->getName() << endl;
         list<Triangle2> tris2d = layout.triangulate();
-        BOOST_FOREACH(Triangle2 tri, tris2d)
+        for(Triangle2 tri : tris2d)
             faces.push_back(Triangle3( tri, minHeight));
     }
 
@@ -201,7 +199,7 @@ list<Triangle3> Building::getFaces() const {
      *  So we still have to scale it according to its actual height, and move
      *  it atop the walls
     */
-    BOOST_FOREACH( Triangle3 tri, tris)
+    for (Triangle3 tri : tris)
     {
         //swap two vertices to change vertex orientation
         /*Triangle3 t( Vector3(tri.v1, totalHeight),
@@ -268,12 +266,12 @@ string Building::toJSON(const OsmPoint &center) const {
     ss << "\t\"edges\":[";
 
     bool isFirstEdge = true;
-    BOOST_FOREACH(const LineStrip &edge, this->getEdges())
+    for (LineStrip const& edge : this->getEdges())
     {
         ss << (!isFirstEdge? ",":"") << "[";
         isFirstEdge = false;
         bool isFirstVertex = true;
-        BOOST_FOREACH(Vector3 v, edge)
+        for (Vector3 v : edge)
         {
             if (!isFirstVertex)
                 ss << ",";
@@ -289,12 +287,12 @@ string Building::toJSON(const OsmPoint &center) const {
     ss << "\t\"outlines\": [";
 
     bool isFirstOutline = true;
-    BOOST_FOREACH(const LineStrip &edge, this->getOutlines())
+    for (LineStrip const& edge : this->getOutlines())
     {
         ss << (!isFirstOutline ? ",":"") << "[";
         isFirstOutline = false;
         bool isFirstVertex = true;
-        BOOST_FOREACH(Vector3 v, edge)
+        for (Vector3 v : edge)
         {
             if (!isFirstVertex)
                 ss << ",";
@@ -311,7 +309,7 @@ string Building::toJSON(const OsmPoint &center) const {
     ss << "\t\"faces\":[";
 
     bool isFirstFace = true;
-    BOOST_FOREACH(Triangle3 tri, this->getFaces())
+    for (Triangle3 tri : this->getFaces())
     {
         if (!isFirstFace)
             ss << ",";
@@ -330,7 +328,7 @@ string Building::toJSON(const OsmPoint &center) const {
     assert(vertexIds.size() == vertices.size());
 
     bool isFirstVertex = true;
-    BOOST_FOREACH(Vector3 v, vertices)
+    for (Vector3 v : vertices)
     {
         if (!isFirstVertex)
             ss << ",";

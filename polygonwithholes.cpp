@@ -2,15 +2,13 @@
 
 #include <assert.h>
 
-#include <boost/foreach.hpp>
-
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/Triangulation_face_base_with_info_2.h>
 #include <CGAL/Triangulation_vertex_base_2.h>
 #include <CGAL/Polygon_2.h>
-#include<CGAL/Polygon_with_holes_2.h>
-#include<CGAL/create_straight_skeleton_from_polygon_with_holes_2.h>
+#include <CGAL/Polygon_with_holes_2.h>
+#include <CGAL/create_straight_skeleton_from_polygon_with_holes_2.h>
 
 #include <iostream>
 
@@ -48,7 +46,7 @@ PolygonWithHoles::PolygonWithHoles( ) {}
 bool isClockwise(const PointList &poly, const char* name)
 {
     list<Point> points;
-    BOOST_FOREACH (const Vector2 p, poly)
+    for (const Vector2 &p: poly)
     {
         points.push_back(Point(p.x, p.y));
         //cout << p.lat << "," << p.lng << endl;
@@ -131,18 +129,15 @@ PolygonWithHoles::PolygonWithHoles(const OsmPointList &outer, const list<OsmPoin
     double latToYFactor = 1/360.0 * EARTH_CIRCUMFERENCE;
     double lngToXFactor = 1/360.0 * EARTH_CIRCUMFERENCE * cos( center.lat / 180 * 3.141592);
 
-    BOOST_FOREACH (const OsmPoint pt, outer)
-    {
+    for (const OsmPoint &pt: outer) {
         double dLat = pt.lat - center.lat;
         double dLng = pt.lng - center.lng;
         this->outer.push_back( Vector2( dLng * lngToXFactor, dLat * latToYFactor ));
     }
 
-    BOOST_FOREACH (const OsmPointList & hole, holes)
-    {
+    for (OsmPointList const& hole: holes) {
         PointList convertedHole;
-        BOOST_FOREACH (const OsmPoint pt, hole)
-        {
+        for (OsmPoint const& pt: hole) {
             double dLat = pt.lat - center.lat;
             double dLng = pt.lng - center.lng;
             convertedHole.push_back( Vector2( dLng * lngToXFactor, dLat * latToYFactor ));
@@ -159,13 +154,14 @@ PolygonWithHoles::PolygonWithHoles(const OsmPointList &outer, const list<OsmPoin
      *  make sure the polygon conforms to these requirements on creation.
      */
 
-    if (isClockwise(this->outer, name))
+    if (isClockwise(this->outer, name)) {
         this->outer.reverse();
+    }
 
-    BOOST_FOREACH (PointList &poly, this->holes)
-    {
-        if (!isClockwise(poly, name))
+    for (PointList &poly: this->holes) {
+        if (!isClockwise(poly, name)) {
             poly.reverse();
+        }
     }
 
     /*FIXME: add sanity checks:
@@ -183,7 +179,7 @@ PolygonWithHoles PolygonWithHoles::fromOsmRelation(OsmRelation rel, OsmPoint cen
 
 
     map<string, uint64_t> roles;
-    BOOST_FOREACH(const OsmRelationMember &member, rel.members)
+    for (OsmRelationMember const& member: rel.members)
         roles[member.role] += 1;
 
     //assert(roles["outer"] == 1);    //exactly one 'outer' way
@@ -193,11 +189,9 @@ PolygonWithHoles PolygonWithHoles::fromOsmRelation(OsmRelation rel, OsmPoint cen
 
 
     const OsmPointList *outer = NULL;
-    for (list<OsmRelationMember>::const_iterator member = rel.members.begin(); member != rel.members.end(); member++)
-    {
-        if (member->role == "outer")
-        {
-            outer = &(member->way.points);
+    for (OsmRelationMember const& member : rel.members) {
+        if (member.role == "outer") {
+            outer = &member.way.points;
             break;
         }
     }
@@ -205,14 +199,13 @@ PolygonWithHoles PolygonWithHoles::fromOsmRelation(OsmRelation rel, OsmPoint cen
     //assert(outer);
 
     list<OsmPointList> holes;
-    for (list<OsmRelationMember>::const_iterator member = rel.members.begin(); member != rel.members.end(); member++)
-    {
-        if (&member->way.points == outer)
+    for (OsmRelationMember const& member : rel.members) {
+        if (&member.way.points == outer)
             continue;
 
 #warning temporarily disabled important assertions
 //        assert((member->role == "inner" && member->role == "") || "unknown member role");
-        holes.push_back( member->way.points);
+        holes.push_back( member.way.points);
 
     }
 
@@ -285,7 +278,7 @@ Polygon_2 asCgalPolygon(const PointList &poly)
     PointList tmp = poly;
     tmp.pop_back(); //remove duplicate start/end vertex
 
-    BOOST_FOREACH(const Vector2 &p, tmp)
+    for (Vector2 const& p: tmp)
         res.push_back( Point(p.x, p.y));
 
     return res;
@@ -298,8 +291,9 @@ list<Triangle2> PolygonWithHoles::triangulate() const
 
     insert_polygon(cdt, asCgalPolygon(this->outer));
 
-    BOOST_FOREACH(const PointList &hole, this->getHoles())
+    for (PointList const& hole: this->getHoles()) {
         insert_polygon(cdt, asCgalPolygon(hole));
+    }
 
     //Mark facets that are inside the domain bounded by the polygon
     mark_domains(cdt);
@@ -330,7 +324,7 @@ list<Triangle3> PolygonWithHoles::triangulateRoof() const
     list< list<Vector3> > skeletonFaces = this->getSkeletonFaces();
 
 
-    BOOST_FOREACH(const list<Vector3> &face, skeletonFaces)
+    for(list<Vector3> const& face: skeletonFaces)
     {
         CDT cdt;
         Polygon_2 poly;
@@ -339,7 +333,7 @@ list<Triangle3> PolygonWithHoles::triangulateRoof() const
 
         //cout << "==============" << endl;
         bool isFirst = true;
-        BOOST_FOREACH(Vector3 pt, face)
+        for (Vector3 pt: face)
         {
             if (isFirst)
             {
@@ -392,8 +386,9 @@ list<list<Vector3> > PolygonWithHoles::getSkeletonFaces() const
 
     Polygon_with_holes poly( asCgalPolygon(this->outer) );
 
-    BOOST_FOREACH(const PointList &hole, this->getHoles())
+    for(PointList const& hole: this->getHoles()) {
         poly.add_hole( asCgalPolygon(hole) );
+    }
 
     SsPtr iss = CGAL::create_interior_straight_skeleton_2(poly);
 
@@ -433,17 +428,18 @@ list<list<Vector3> > PolygonWithHoles::getSkeletonFaces() const
     }
 
     double maxHeight = 0;
-    BOOST_FOREACH(list<Vector3> &face, res)
-    {
-        BOOST_FOREACH(Vector3 &v, face)
-            if (v.z > maxHeight)
+    for (list<Vector3> const& face : res) {
+        for (Vector3 const& v : face) {
+            if (v.z > maxHeight) {
                 maxHeight = v.z;
+            }
+        }
     }
 
-    BOOST_FOREACH(list<Vector3> &face, res)
-    {
-        BOOST_FOREACH(Vector3 &v, face)
+    for (list<Vector3> &face : res) {
+        for (Vector3 &v : face) {
             v.z /= maxHeight;
+        }
     }
 
 
