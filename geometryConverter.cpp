@@ -395,7 +395,7 @@ int main(int argc, char *argv[])
             ";relation[\"building\"][\"type\"=\"multipolygon\"]"+sAABB+
             ";relation[\"building:part\"][\"type\"=\"multipolygon\"]"+sAABB+
             ";relation[\"type\"=\"building\"]"+sAABB+
-            ");out body;>;out skel qt;";
+            ";);out body;>;out skel qt;";
 
     //cerr <<"Query: " << buildingsAtFlatViewDefaultLocation.toStdString()  << endl;
     /*
